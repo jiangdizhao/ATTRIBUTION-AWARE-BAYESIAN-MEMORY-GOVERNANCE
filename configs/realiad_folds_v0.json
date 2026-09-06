@@ -1,0 +1,59 @@
+{
+  "schema": "abmg.realiad.category_folds.v1",
+  "version": "v0",
+  "policy": "Five fixed category-level folds of six categories. For fold k, target_categories are held out; source_categories are the complement of all_categories. Representation training and source-side hyperparameter selection must not use target-category labels.",
+  "all_categories": [
+    "audiojack",
+    "bottle_cap",
+    "button_battery",
+    "end_cap",
+    "eraser",
+    "fire_hood",
+    "mint",
+    "mounts",
+    "pcb",
+    "phone_battery",
+    "plastic_nut",
+    "plastic_plug",
+    "porcelain_doll",
+    "regulator",
+    "rolled_strip_base",
+    "sim_card_set",
+    "switch",
+    "tape",
+    "terminalblock",
+    "toothbrush",
+    "toy",
+    "toy_brick",
+    "transistor1",
+    "usb",
+    "usb_adaptor",
+    "u_block",
+    "vcpill",
+    "wooden_beads",
+    "woodstick",
+    "zipper"
+  ],
+  "folds": [
+    {
+      "fold": 0,
+      "target_categories": ["audiojack", "bottle_cap", "button_battery", "end_cap", "eraser", "fire_hood"]
+    },
+    {
+      "fold": 1,
+      "target_categories": ["mint", "mounts", "pcb", "phone_battery", "plastic_nut", "plastic_plug"]
+    },
+    {
+      "fold": 2,
+      "target_categories": ["porcelain_doll", "regulator", "rolled_strip_base", "sim_card_set", "switch", "tape"]
+    },
+    {
+      "fold": 3,
+      "target_categories": ["terminalblock", "toothbrush", "toy", "toy_brick", "transistor1", "usb"]
+    },
+    {
+      "fold": 4,
+      "target_categories": ["usb_adaptor", "u_block", "vcpill", "wooden_beads", "woodstick", "zipper"]
+    }
+  ]
+}
