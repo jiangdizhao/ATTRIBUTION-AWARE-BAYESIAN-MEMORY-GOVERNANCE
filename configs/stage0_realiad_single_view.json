@@ -1,0 +1,40 @@
+{
+  "schema": "abmg.stage0.profile.v1",
+  "name": "realiad_visionad_aligned_single_view_v0",
+  "purpose": "Stage 0A numerical continuity and Stage 0B frozen sensory cache for the ABMG representation experiments.",
+  "dataset": {
+    "name": "Real-IAD",
+    "protocol": "category_level_cross_fit_single_view",
+    "target_shots": 4,
+    "folds_file": "configs/realiad_folds_v0.json",
+    "target_labels_visible_to_representation_training": false,
+    "pixel_masks_online_visible": false
+  },
+  "sensor": {
+    "backbone": "dinov2_vitl14_reg",
+    "frozen": true,
+    "resize_size": 448,
+    "crop_size": 392,
+    "patch_size": 14,
+    "grid_hw": [28, 28],
+    "layers_zero_indexed": [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18],
+    "layer_fusion": "mean",
+    "query_views": ["identity"],
+    "support_augmentation": ["identity", "rot90", "rot180", "rot270", "vflip", "hflip"],
+    "patch_distance": "cosine_1_minus_similarity",
+    "patch_knn": 1,
+    "image_score": "mean_top_fraction_pixels",
+    "top_fraction": 0.01
+  },
+  "cache": {
+    "dtype": "float16",
+    "payload_contains_ground_truth": false,
+    "public_manifest": "manifest_public.jsonl",
+    "offline_ground_truth_manifest": "manifest_offline_gt.jsonl"
+  },
+  "provenance": {
+    "visionad_paper": "Search is All You Need for Few-shot Anomaly Detection, Wang et al., arXiv:2504.11895",
+    "paper_alignment_note": "The backbone, 448->392 preprocessing, DINOv2-Register ViT-L/14 choice, selected block range, mean layer fusion, geometric support expansion, and top-1%-pixel score follow the paper/public reference implementation. The ABMG principal experiment intentionally uses a single identity query view rather than VisionAD pseudo-multi-view fusion.",
+    "abmg_guide": "Attribution-Aware Bayesian Memory Governance - Step-by-Step Guide, scaffold v0.1 interpretation"
+  }
+}
