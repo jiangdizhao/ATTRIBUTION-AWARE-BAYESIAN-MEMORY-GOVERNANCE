@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Local environments / editor
+.venv/
+venv/
+.env
+
+# ABMG generated artifacts
+cache/
+outputs/
+saved_results/
+logs/
+
+# Large tensor/checkpoint artifacts
+*.pt
+*.pth
+*.ckpt
+
+# OS
+.DS_Store
