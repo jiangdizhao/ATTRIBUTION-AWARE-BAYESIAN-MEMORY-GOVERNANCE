@@ -26,6 +26,8 @@ Hard protocol rules
   supports. NIG Bayesian memory is intentionally deferred to later claims.
 * No automatic C1 pass/fail threshold is invented. The report exposes paired
   utility and addressability deltas for scientific interpretation.
+* During beta warm-up, validation logging uses the current effective beta.
+  Scientific checkpoint selection starts only after the target beta is reached.
 """
 
 from __future__ import annotations
@@ -63,6 +65,7 @@ from vmb_visionad_new import patch_nn_anomaly_map, resize_and_center_crop
 
 SCHEMA = "abmg.stage1_c1.v1"
 EPS = 1e-8
+CHECKPOINT_SELECTION_POLICY = "post_warmup_target_beta"
 
 
 # -----------------------------------------------------------------------------
@@ -400,6 +403,24 @@ def vae_losses(x: torch.Tensor, recon: torch.Tensor, mu: torch.Tensor, logvar: t
     return rec_each.mean(), kl_each.mean(), kl_each_coord.mean(dim=0)
 
 
+def beta_objective(rec_loss: float, kl_loss: float, beta: float) -> float:
+    """Return reconstruction + beta*KL using scalar losses.
+
+    Kept as a small explicit helper so warm-up validation and target-beta
+    checkpoint selection cannot silently use different formulas.
+    """
+    return float(rec_loss) + float(beta) * float(kl_loss)
+
+
+def checkpoint_selection_eligible(beta_target: float, beta_effective: float, warmup_epochs: int) -> bool:
+    """Scientific checkpoints are eligible only after warm-up reaches target beta."""
+    if int(warmup_epochs) <= 0:
+        return True
+    return math.isclose(
+        float(beta_effective), float(beta_target), rel_tol=1e-12, abs_tol=1e-12
+    )
+
+
 def grad_l2(parameters: Iterable[torch.nn.Parameter]) -> float:
     s = 0.0
     for p in parameters:
@@ -504,7 +525,7 @@ def run_scale_audit(args: argparse.Namespace) -> int:
         "latent_dim": args.latent_dim,
         "image_level_split": manifest_split_stats(cache, set(source), args.fold, args.val_fraction),
         "compatibility_band": [args.compat_min, args.compat_max],
-        "note": "Compatibility means both beta*KL/reconstruction and encoder-gradient ratios are within the predeclared order-of-magnitude band. Prefer raw if it passes; use scalar only if raw fails and scalar passes. This is a numerical preflight gate, not evidence for C1.",
+        "note": "Legacy one-shot audit retained for compatibility. Prefer the dynamic v2 scale audit for the normalization decision.",
         "conditions": rows,
     }
     json_dump(report, out / f"fold_{args.fold}_scale_audit.json")
@@ -579,11 +600,14 @@ def evaluate_vae_on_cache(
         corr_offdiag = float(corr[mask].abs().mean().item())
 
     kl_coord = (kl_coord_sum / n_patch).float()
+    rec_mean = rec_sum / n_patch
+    kl_mean = kl_sum / n_patch
     return {
         "n_val_patches": n_patch,
-        "rec_loss": rec_sum / n_patch,
-        "kl_loss": kl_sum / n_patch,
-        "beta_objective": rec_sum / n_patch + beta * kl_sum / n_patch,
+        "rec_loss": rec_mean,
+        "kl_loss": kl_mean,
+        "beta_objective": beta_objective(rec_mean, kl_mean, beta),
+        "objective_beta": float(beta),
         "recon_cosine_original_space": cos_sum / n_patch,
         "mean_abs_offdiag_mu_corr": corr_offdiag,
         "per_coordinate_kl": kl_coord.tolist(),
@@ -607,8 +631,15 @@ def run_train(args: argparse.Namespace) -> int:
     out = Path(args.out_dir) / f"fold_{args.fold}" / f"beta_{args.beta:g}" / f"seed_{args.seed}"
     out.mkdir(parents=True, exist_ok=True)
     train_log = out / "train.jsonl"
-    if train_log.exists() and not args.resume:
-        train_log.unlink()
+    best_path = out / "checkpoint_best.pt"
+    last_path = out / "checkpoint_last.pt"
+
+    # A fresh run must not inherit a stale pre-warm-up best checkpoint from an
+    # earlier run in the same directory.
+    if not args.resume:
+        for stale in (train_log, best_path, last_path):
+            if stale.exists():
+                stale.unlink()
 
     resolved = {
         "schema": SCHEMA + ".train_config",
@@ -634,20 +665,30 @@ def run_train(args: argparse.Namespace) -> int:
         "max_epochs": args.epochs,
         "seed": args.seed,
         "git_sha": git_sha_or_unknown(),
+        "checkpoint_selection_policy": CHECKPOINT_SELECTION_POLICY,
+        "checkpoint_selection_note": (
+            "Validation during warm-up is logged with beta_effective. checkpoint_best.pt is "
+            "eligible only once beta_effective reaches the target beta, and is then selected "
+            "using rec + target_beta*KL."
+        ),
     }
     json_dump(resolved, out / "resolved_config.json")
 
     best = float("inf")
     best_epoch = -1
-    best_path = out / "checkpoint_best.pt"
     start_epoch = 0
-    last_path = out / "checkpoint_last.pt"
     if args.resume and last_path.is_file():
         state = torch_load(last_path, map_location=device)
+        old_policy = state.get("checkpoint_selection_policy")
+        if old_policy != CHECKPOINT_SELECTION_POLICY:
+            raise RuntimeError(
+                "Refusing to resume a checkpoint created before the post-warm-up "
+                "checkpoint-selection fix. Start a fresh run without --resume."
+            )
         model.load_state_dict(state["model"])
         optimizer.load_state_dict(state["optimizer"])
         start_epoch = int(state["epoch"]) + 1
-        best = float(state.get("best_val", best))
+        best = float(state.get("best_val_target_beta_objective", state.get("best_val", best)))
         best_epoch = int(state.get("best_epoch", -1))
         print(f"resuming from epoch {start_epoch}")
 
@@ -680,10 +721,18 @@ def run_train(args: argparse.Namespace) -> int:
             total_sum += float(loss.detach().item()) * n
             n_patch += n
 
+        # During warm-up the validation objective must use the SAME beta that
+        # generated this epoch's training gradient. We also log what the same
+        # checkpoint would score under the final target beta, but that quantity
+        # is not allowed to select a checkpoint until warm-up has finished.
         val = evaluate_vae_on_cache(
             model, norm, cache, set(source), args.fold, args.val_fraction,
-            args.image_batch_size, device, args.beta, args.latent_sample_cap,
+            args.image_batch_size, device, beta_eff, args.latent_sample_cap,
         )
+        val_current_obj = float(val["beta_objective"])
+        val_target_obj = beta_objective(val["rec_loss"], val["kl_loss"], args.beta)
+        eligible = checkpoint_selection_eligible(args.beta, beta_eff, args.beta_warmup_epochs)
+
         row = {
             "epoch": epoch,
             "beta_effective": beta_eff,
@@ -692,16 +741,24 @@ def run_train(args: argparse.Namespace) -> int:
             "train_total": total_sum / max(n_patch, 1),
             "val_rec": val["rec_loss"],
             "val_kl": val["kl_loss"],
-            "val_beta_objective": val["beta_objective"],
+            # Backward-compatible name now correctly means the CURRENT-beta
+            # validation objective during warm-up.
+            "val_beta_objective": val_current_obj,
+            "val_current_beta_objective": val_current_obj,
+            "val_target_beta_objective": val_target_obj,
+            "checkpoint_selection_eligible": eligible,
             "val_recon_cosine_original_space": val["recon_cosine_original_space"],
             "val_mean_abs_offdiag_mu_corr": val["mean_abs_offdiag_mu_corr"],
         }
         append_jsonl(train_log, row)
         print(json.dumps(row))
 
-        is_best = bool(val["beta_objective"] < best)
+        # Scientific checkpoint selection starts only after beta_eff has reached
+        # the intended beta. Once eligible, current-beta and target-beta
+        # objectives are identical, but use the explicit target objective here.
+        is_best = bool(eligible and val_target_obj < best)
         if is_best:
-            best = float(val["beta_objective"])
+            best = float(val_target_obj)
             best_epoch = epoch
         ckpt = {
             "schema": SCHEMA + ".checkpoint",
@@ -710,22 +767,42 @@ def run_train(args: argparse.Namespace) -> int:
             "normalizer": norm.state(),
             "epoch": epoch,
             "best_val": best,
+            "best_val_target_beta_objective": best,
             "best_epoch": best_epoch,
             "fold": args.fold,
             "beta": float(args.beta),
+            "beta_effective": float(beta_eff),
             "seed": args.seed,
             "latent_dim": args.latent_dim,
             "input_dim": cache.feature_dim,
             "source_categories": source,
             "target_categories": target,
             "cache_fingerprint": cache.fingerprint,
+            "checkpoint_selection_policy": CHECKPOINT_SELECTION_POLICY,
+            "checkpoint_selection_eligible": bool(eligible),
+            "val_current_beta_objective": val_current_obj,
+            "val_target_beta_objective": val_target_obj,
             "config": resolved,
         }
         torch.save(ckpt, last_path)
         if is_best:
             torch.save(ckpt, best_path)
 
-    state = torch_load(best_path, map_location=device)
+    if not last_path.is_file():
+        raise RuntimeError("Training produced no checkpoint_last.pt")
+
+    scientific_checkpoint_available = best_path.is_file()
+    if scientific_checkpoint_available:
+        selected_path = best_path
+        checkpoint_selection_status = "post_warmup_best"
+    else:
+        # A short engineering smoke run may deliberately end before target beta
+        # is reached. It remains useful for mechanics, but its last checkpoint
+        # must not be mistaken for a scientifically selected model.
+        selected_path = last_path
+        checkpoint_selection_status = "provisional_last_no_post_warmup_epoch"
+
+    state = torch_load(selected_path, map_location=device)
     model.load_state_dict(state["model"])
     final = evaluate_vae_on_cache(
         model, norm, cache, set(source), args.fold, args.val_fraction,
@@ -744,8 +821,13 @@ def run_train(args: argparse.Namespace) -> int:
         "fold": args.fold,
         "beta": float(args.beta),
         "seed": args.seed,
-        "best_epoch": best_epoch,
-        "checkpoint": str(best_path),
+        "best_epoch": best_epoch if scientific_checkpoint_available else None,
+        "checkpoint": str(selected_path),
+        "checkpoint_best": str(best_path) if scientific_checkpoint_available else None,
+        "checkpoint_last": str(last_path),
+        "scientific_checkpoint_available": scientific_checkpoint_available,
+        "checkpoint_selection_policy": CHECKPOINT_SELECTION_POLICY,
+        "checkpoint_selection_status": checkpoint_selection_status,
         "normalization": args.normalization,
         "normalization_scalar": float(norm.scalar),
         "source_categories": source,
@@ -754,7 +836,11 @@ def run_train(args: argparse.Namespace) -> int:
         "validation": final,
         "canonical_8_group_kl": group_kl,
         "canonical_8_group_var_mu": group_var,
-        "interpretation_note": "KL/Var(mu) are continuous collapse/usage diagnostics. Do not infer semantic defect meanings from latent coordinates/groups.",
+        "interpretation_note": (
+            "KL/Var(mu) are continuous collapse/usage diagnostics. Do not infer semantic defect "
+            "meanings from latent coordinates/groups. checkpoint_best.pt is scientifically "
+            "eligible only after the target beta is reached."
+        ),
     }
     json_dump(summary, out / "summary.json")
     print(json.dumps(summary, indent=2))
@@ -800,6 +886,16 @@ def parse_named_checkpoints(specs: Sequence[str], device: torch.device, expected
         fold = int(state["fold"])
         if fold != int(expected_fold):
             raise ValueError(f"Checkpoint {path} fold={fold}, expected {expected_fold}")
+        if state.get("checkpoint_selection_policy") != CHECKPOINT_SELECTION_POLICY:
+            raise RuntimeError(
+                f"Checkpoint {path} predates the post-warm-up selection fix or is provisional. "
+                "Retrain with the current script before target evaluation."
+            )
+        if not bool(state.get("checkpoint_selection_eligible", False)):
+            raise RuntimeError(
+                f"Checkpoint {path} was saved before target beta was reached; it is not eligible "
+                "for scientific retention/addressability evaluation."
+            )
         model = FeatureVAE(int(state["input_dim"]), int(state["latent_dim"])).to(device)
         model.load_state_dict(state["model"])
         model.eval()
