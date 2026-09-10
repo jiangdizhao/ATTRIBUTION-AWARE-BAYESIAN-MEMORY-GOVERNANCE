@@ -29,8 +29,32 @@ class C1ProtocolTests(unittest.TestCase):
     def test_beta_warmup(self):
         self.assertEqual(c1.beta_at_epoch(4.0, 0, 5), 0.0)
         self.assertAlmostEqual(c1.beta_at_epoch(4.0, 1, 5), 0.8)
+        self.assertAlmostEqual(c1.beta_at_epoch(4.0, 4, 5), 3.2)
         self.assertEqual(c1.beta_at_epoch(4.0, 5, 5), 4.0)
         self.assertEqual(c1.beta_at_epoch(4.0, 20, 5), 4.0)
+
+    def test_validation_objective_uses_requested_beta(self):
+        rec = 100.0
+        kl = 10.0
+        self.assertEqual(c1.beta_objective(rec, kl, 0.0), 100.0)
+        self.assertEqual(c1.beta_objective(rec, kl, 0.8), 108.0)
+        self.assertEqual(c1.beta_objective(rec, kl, 4.0), 140.0)
+
+    def test_checkpoint_selection_waits_for_target_beta(self):
+        target = 4.0
+        warmup = 5
+        for epoch in range(5):
+            beta_eff = c1.beta_at_epoch(target, epoch, warmup)
+            self.assertFalse(
+                c1.checkpoint_selection_eligible(target, beta_eff, warmup),
+                msg=f"epoch={epoch} beta_eff={beta_eff} must still be warm-up only",
+            )
+        self.assertTrue(
+            c1.checkpoint_selection_eligible(
+                target, c1.beta_at_epoch(target, 5, warmup), warmup
+            )
+        )
+        self.assertTrue(c1.checkpoint_selection_eligible(target, target, 0))
 
     def test_image_split_is_deterministic(self):
         a = c1.image_split("same-image", fold=2, val_fraction=0.1)
