@@ -1,8 +1,14 @@
+import sys
 import unittest
+from pathlib import Path
 
 import torch
 
-from scripts.abmg_patch_aggregation_smoke import parse_k_values, pool_selected_raw_patches
+SCRIPTS = Path(__file__).resolve().parents[1] / "scripts"
+if str(SCRIPTS) not in sys.path:
+    sys.path.insert(0, str(SCRIPTS))
+
+from abmg_patch_aggregation_smoke import parse_k_values, pool_selected_raw_patches
 
 
 class TestPatchAggregationSmoke(unittest.TestCase):
