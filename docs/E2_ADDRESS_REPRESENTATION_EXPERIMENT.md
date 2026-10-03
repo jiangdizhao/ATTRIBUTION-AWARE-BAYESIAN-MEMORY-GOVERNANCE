@@ -1,6 +1,6 @@
 # E2 Address-Representation Candidate Audit
 
-**Status:** IMPLEMENTED / awaiting local execution  
+**Status:** E2-A/E2-B SCREENING COMPLETE / raw DINO retained provisionally  
 **Branch:** \`stage2-e2-address-sidecar-benchmark\`  
 **Scientific scope:** choose the simplest stable representation for **memory addressing** while keeping anomaly detection in frozen raw-DINO space.
 
@@ -256,9 +256,9 @@ The JSON files are intended to be small enough to upload for review.
 | Date | Status | Evidence / decision |
 |---|---|---|
 | 2026-10-03 | E2 protocol implemented | Awaiting local unit tests and E2-A smoke run |
-| pending | E2-A linear screening | Results not yet available |
-| pending | E2-B learned-sidecar screening | Results not yet available |
-| pending | E2-C finalist confirmation | Must not start before E2-A/E2-B review |
+| 2026-10-04 | E2-A linear screening complete | Raw DINO Sensor macro-F1 0.6060. PCA 0.4347, ICA 0.4395. Neither passed the primary gate. |
+| 2026-10-04 | E2-B learned-sidecar screening complete | Raw DINO Sensor macro-F1 0.6062. Best learned candidate CorrVAE-inspired 0.4791; no learned candidate improved raw in any source-CV fold. |
+| 2026-10-04 | E2 screening decision | No sidecar qualifies for finalist confirmation under the predeclared gate. Raw DINO is the provisional address representation. E2-C is not triggered for the tested 32-D sidecars. |
 
 ## 11. Result-entry template
 
@@ -272,3 +272,101 @@ After results are reviewed, append a new dated entry here containing:
 * failure diagnostics where relevant;
 * decision on which representation is frozen for E3/E4;
 * whether E2-C is necessary.
+
+
+## 12. E2-A / E2-B screening results (2026-10-04)
+
+Uploaded result files were reviewed as two result families:
+
+* `*_linear_*`: raw DINO, PCA, ICA.
+* `*_learned_*`: raw DINO, Beta-TCVAE, FactorVAE, CorrVAE-inspired, address-plus-residual AE, sparse AE.
+* `*_cv0.json` ... `*_cv3.json`: the four source-CV held-out-product folds.
+* `e2_summary_*.json`: the corresponding four-fold aggregate summaries.
+
+The branch HEAD before this result-record commit was
+`c3544b9f84b20436b247fd7f574280e736573aa1`. The uploaded JSON files do not
+embed the Git commit SHA, so the exact local run commit is not independently
+recoverable from the outputs themselves.
+
+### 12.1 Aggregate routing result
+
+| Candidate | Sensor macro-F1 | Oracle macro-F1 | Sensor source-signature gap | Spatial true-factor patch AUROC | Primary gate |
+|---|---:|---:|---:|---:|---|
+| Raw DINO | 0.6062 | 0.7598 | +0.1913 | 0.7347 | Baseline |
+| CorrVAE-inspired | 0.4791 | 0.5988 | -0.0635 | 0.9302 | Fail |
+| Sparse AE | 0.4776 | 0.5962 | -0.0373 | 0.9187 | Fail |
+| FactorVAE | 0.4775 | 0.5975 | -0.0145 | 0.9191 | Fail |
+| ICA | 0.4395 | 0.5237 | -0.0224 | 0.9097 | Fail |
+| Address+residual AE | 0.4361 | 0.5548 | -0.0880 | 0.9250 | Fail |
+| PCA | 0.4347 | 0.5188 | -0.0267 | 0.9295 | Fail |
+| Beta-TCVAE | 0.4098 | 0.5452 | -0.1639 | 0.9055 | Fail |
+
+The raw baseline repeated almost identically in the independent linear and
+learned screening runs (mean Sensor macro-F1 0.6060 vs 0.6062; maximum
+per-fold difference < 0.001), which is a useful internal reproducibility check.
+
+### 12.2 Main scientific result
+
+No tested 32-D sidecar improved raw DINO in even one of the four source-CV folds.
+All sidecars also suffered substantial Oracle-routing degradation. Therefore the
+Sensor deficit cannot be explained only by noisy top-8 spatial selection: even
+when GT-mask-positive patches are supplied, the tested sidecar address spaces
+discard or distort cross-product Core-4 routing information.
+
+At the same time, most sidecars produced much higher true-factor patch AUROC
+than raw DINO. This does **not** mean that the deployed Sensor became better:
+Sensor top-8 selection is fixed in raw-DINO space. It means that, inside a known
+factor column, sidecar scores often separate mask-positive from mask-negative
+patches well, while the different factor identities remain poorly separated.
+The negative mean source-signature gaps support this interpretation.
+
+### 12.3 Candidate-specific diagnostics
+
+**PCA / ICA.** 32-D PCA retained only about 63% of normal-patch variance and
+routing fell sharply. ICA was also poor and failed its convergence criterion in
+three of the four folds. Linear re-coordinate/compression therefore did not
+produce a useful compact address under this setting.
+
+**Beta-TCVAE.** This was the weakest learned candidate. Its strongly negative
+source-signature gap and large Sensor/Oracle routing losses show that selective
+TC regularization did not recover the cross-product routing structure lost by
+the earlier beta-VAE-style bottleneck.
+
+**FactorVAE.** Better than Beta-TCVAE, but still far below raw DINO and below the
+primary gate. Independence pressure did not create a superior address space.
+
+**CorrVAE-inspired.** It was the highest-mean learned candidate, but only
+marginally ahead of FactorVAE/Sparse AE and far below raw DINO. More importantly,
+its group participation ratio was about 7.1 of 8 groups in every fold. Thus the
+desired "few active groups" address behavior did not emerge. The objective
+penalized cross-group covariance, but the current result files do not report the
+final measured cross-group covariance, so weak inter-group coupling itself
+cannot yet be claimed empirically.
+
+**Address-plus-residual AE.** The separate address channel did not preserve
+enough Core-4 identity for routing, despite reasonable reconstruction training.
+
+**Sparse AE.** The measured fraction of address coordinates with
+`|z| < 1e-3` was 0.0 in all four folds, so this configuration did not actually
+learn a sparse code. Its failure should be interpreted as a failure of the
+tested sparse-AE configuration, not as evidence that sparse addressing is
+impossible in general.
+
+### 12.4 Decision
+
+For the current ABMG pipeline:
+
+```text
+raw DINO remains the best available address representation.
+```
+
+No tested sidecar qualifies for the planned E2-C finalist confirmation.
+Therefore E3/E4 should not depend on any of these 32-D sidecars unless a new,
+explicitly motivated representation diagnostic is opened.
+
+A remaining interpretation caveat is dimensionality: raw DINO is 1024-D while
+all sidecars were forced to a 32-D address. The present result supports the
+narrow claim "none of the tested 32-D sidecars improves raw DINO"; it does **not**
+prove that factorized/structured sidecars can never work. If that causal question
+becomes important, the clean next diagnostic is a small dimensionality control
+(e.g. PCA 64/128/256/512) rather than a full E2-C rerun.
