@@ -156,12 +156,14 @@ No defect label is used to fit any prior.
 For each held-out product:
 
 1. The frozen detector uses its ordinary 4-shot normal support.
-2. Additional normal TRAIN images not used by the detector form the state-initialization pool.
-3. Normal TEST images are deterministically split into:
-   * verified-normal update stream;
-   * fixed normal sentinel set.
-4. Defect TEST images form the anomaly probe set.
+2. Up to **32** additional normal TRAIN images not used by the detector are selected deterministically for source-prior/state-support evidence.
+3. Up to **64** normal TEST images are selected deterministically and split into:
+   * 32 verified-normal update items;
+   * at least 32 fixed normal sentinel items when available.
+4. Defect TEST probes are deterministically capped at **16 per (product, defect-source)** for the E3 audit.
 5. Defect labels/masks are evaluator-only and never update the normal state.
+
+These bounds are deliberate. E3 is a matched normal-state mechanism audit, not a full detector benchmark. Using every Real-IAD normal image only repeats expensive frozen-backbone extraction without strengthening the causal comparison.
 
 Every source category is held out exactly once across the four source-CV folds.
 
@@ -359,6 +361,7 @@ outputs/e3_contamination/fold_0/
 | Date | Status | Evidence / decision |
 |---|---|---|
 | 2026-10-05 | E3 protocol frozen | Raw DINO retained from E2; four primary normal-state conditions defined |
+| 2026-10-05 | Extraction runtime correction | Initial extractor processed all normal images, making even the defect-capped smoke run close to full cost. Extraction is now deterministically bounded to 32 train normals/product, 64 test normals/product, and 16 defects/(product, source), with batched patch-NN evaluation. |
 | pending | Unit tests | Not yet run locally |
 | pending | Evidence extraction | Not yet run |
 | pending | E3-A stationary sparse audit | Not yet run |
