@@ -524,9 +524,7 @@ def run_cv_fold(
                         float(noise_rate),
                         len(defects),
                         int(contamination_seed)
-                        + 100_000 * int(source_cv_fold)
-                        + 1000 * int(shots)
-                        + 17 * int(support_seed),
+                        + 100_000 * int(source_cv_fold),
                     )
 
                     states: Dict[str, Any] = {}
