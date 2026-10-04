@@ -13,6 +13,7 @@ Only outer-fold source categories are opened.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 from collections import Counter, defaultdict
 from dataclasses import asdict
@@ -67,24 +68,73 @@ def pool_topk_raw(
     return torch.nn.functional.normalize(z, dim=0)
 
 
+def _stable_key(seed: int, rec: Stage0Record) -> str:
+    return hashlib.sha1(
+        f"{int(seed)}|{rec.image_id}".encode("utf-8")
+    ).hexdigest()
+
+
+def _take_deterministic(
+    rows: Sequence[Stage0Record],
+    limit: int,
+    seed: int,
+) -> List[Stage0Record]:
+    xs = sorted(rows, key=lambda r: _stable_key(seed, r))
+    if int(limit) > 0:
+        xs = xs[: int(limit)]
+    return list(xs)
+
+
 def _records_for_category(
     records: Sequence[Stage0Record],
     category: str,
     defect_keep_ids: set[str],
     detector_support_ids: set[str],
+    *,
+    max_train_normal: int,
+    max_test_normal: int,
+    normal_sample_seed: int,
 ) -> List[Tuple[str, Stage0Record]]:
-    out: List[Tuple[str, Stage0Record]] = []
-    for r in records:
-        if r.category != category:
-            continue
-        if r.split == "train" and r.is_good:
-            if r.image_id not in detector_support_ids:
-                out.append(("train_normal", r))
-        elif r.split == "test" and r.is_good:
-            out.append(("test_normal", r))
-        elif r.split == "test" and (not r.is_good):
-            if r.image_id in defect_keep_ids:
-                out.append(("defect", r))
+    train_normal = [
+        r for r in records
+        if r.category == category
+        and r.split == "train"
+        and r.is_good
+        and r.image_id not in detector_support_ids
+    ]
+    test_normal = [
+        r for r in records
+        if r.category == category
+        and r.split == "test"
+        and r.is_good
+    ]
+    defect = [
+        r for r in records
+        if r.category == category
+        and r.split == "test"
+        and (not r.is_good)
+        and r.image_id in defect_keep_ids
+    ]
+
+    # E3 is a matched normal-state audit, not a full detector benchmark.
+    # Deterministic caps keep prior/sentinel estimation statistically adequate
+    # while avoiding hours of redundant frozen-backbone extraction.
+    train_normal = _take_deterministic(
+        train_normal,
+        int(max_train_normal),
+        int(normal_sample_seed),
+    )
+    test_normal = _take_deterministic(
+        test_normal,
+        int(max_test_normal),
+        int(normal_sample_seed) + 1,
+    )
+
+    out = (
+        [("train_normal", r) for r in train_normal]
+        + [("test_normal", r) for r in test_normal]
+        + [("defect", r) for r in defect]
+    )
     return sorted(
         out,
         key=lambda x: (x[0], x[1].defect_source, x[1].relative_path),
@@ -160,6 +210,9 @@ def run(args: argparse.Namespace) -> int:
                 category,
                 defect_keep_ids,
                 detector_support_ids,
+                max_train_normal=int(args.max_train_normal_per_category),
+                max_test_normal=int(args.max_test_normal_per_category),
+                normal_sample_seed=int(args.normal_sample_seed),
             )
             support_meta[category] = {
                 "detector_support_image_ids": [
@@ -177,14 +230,21 @@ def run(args: argparse.Namespace) -> int:
                 recs = [r for _, r in block]
                 q_batch, _ = sensor.encode_path_batch(recs)
 
+                # One batched NN pass for all patches in this image batch.
+                # This preserves exact per-patch nearest-neighbour scores while
+                # avoiding one small matrix multiplication loop per image.
+                bsz, npatch, dim = q_batch.shape
+                flat_q = q_batch.reshape(bsz * npatch, dim)
+                best_sim_flat, _ = nearest_cosine(
+                    flat_q,
+                    bank,
+                    chunk=int(args.nn_chunk),
+                )
+                best_sim_batch = best_sim_flat.reshape(bsz, npatch)
+
                 for bi, (role, rec) in enumerate(block):
                     qf = q_batch[bi]
-                    best_sim, _ = nearest_cosine(
-                        qf,
-                        bank,
-                        chunk=int(args.nn_chunk),
-                    )
-                    patch_scores = 1.0 - best_sim
+                    patch_scores = 1.0 - best_sim_batch[bi]
                     vec = pool_topk_raw(
                         qf,
                         patch_scores,
@@ -277,6 +337,15 @@ def run(args: argparse.Namespace) -> int:
             "max_per_type_per_category": int(
                 args.max_per_type_per_category
             ),
+            "max_train_normal_per_category": int(
+                args.max_train_normal_per_category
+            ),
+            "max_test_normal_per_category": int(
+                args.max_test_normal_per_category
+            ),
+            "normal_sample_seed": int(args.normal_sample_seed),
+            "query_batch_size": int(args.query_batch_size),
+            "nn_chunk": int(args.nn_chunk),
             "seed": int(args.seed),
         },
         out_dir / "resolved_config.json",
@@ -308,8 +377,18 @@ def make_parser() -> argparse.ArgumentParser:
     p.add_argument("--detector-support-seed", type=int, default=0)
     p.add_argument("--device", type=str, default="cuda")
     p.add_argument("--no-fp16", action="store_true")
-    p.add_argument("--query-batch-size", type=int, default=2)
-    p.add_argument("--nn-chunk", type=int, default=256)
+    p.add_argument(
+        "--query-batch-size",
+        type=int,
+        default=4,
+        help="Frozen-DINO image batch. Try 8 on a 24GB GPU if memory allows.",
+    )
+    p.add_argument(
+        "--nn-chunk",
+        type=int,
+        default=2048,
+        help="Patch rows per cosine-matmul chunk; >=784 avoids tiny per-image chunks.",
+    )
     p.add_argument("--sensor-k", type=int, default=PRIMARY_SENSOR_K)
     p.add_argument(
         "--score-temperature",
@@ -320,9 +399,22 @@ def make_parser() -> argparse.ArgumentParser:
     p.add_argument(
         "--max-per-type-per-category",
         type=int,
-        default=64,
-        help="Screening default=64; use 0 later only for full confirmation.",
+        default=16,
+        help="E3 default=16 defects per (product, source); E3 is not a full detector benchmark.",
     )
+    p.add_argument(
+        "--max-train-normal-per-category",
+        type=int,
+        default=32,
+        help="Deterministic normal TRAIN cap for source-prior/state-support evidence.",
+    )
+    p.add_argument(
+        "--max-test-normal-per-category",
+        type=int,
+        default=64,
+        help="Deterministic normal TEST cap; supports 32 updates plus >=32 sentinels.",
+    )
+    p.add_argument("--normal-sample-seed", type=int, default=271828)
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--progress-every", type=int, default=64)
     return p
