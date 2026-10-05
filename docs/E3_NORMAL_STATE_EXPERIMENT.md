@@ -1,6 +1,6 @@
 # E3 Sparse Normal-State Model Audit
 
-**Status:** IMPLEMENTED / awaiting local execution  
+**Status:** E3-A/E3-B SOURCE-CV AUDIT COMPLETE / ordinary diagonal NIG retained  
 **Branch:** \`stage2-e3-normal-state-audit\`  
 **Scientific scope:** choose a defensible sparse online normal-state model while keeping the frozen detector, representation, query schedule, and evidence stream fixed.
 
@@ -362,8 +362,150 @@ outputs/e3_contamination/fold_0/
 |---|---|---|
 | 2026-10-05 | E3 protocol frozen | Raw DINO retained from E2; four primary normal-state conditions defined |
 | 2026-10-05 | Extraction runtime correction | Initial extractor processed all normal images, making even the defect-capped smoke run close to full cost. Extraction is now deterministically bounded to 32 train normals/product, 64 test normals/product, and 16 defects/(product, source), with batched patch-NN evaluation. |
-| pending | Unit tests | Not yet run locally |
-| pending | Evidence extraction | Not yet run |
-| pending | E3-A stationary sparse audit | Not yet run |
-| pending | E3-B contamination audit | Not yet run |
-| pending | E3 result review | Results will be appended here before E4 |
+| 2026-10-05 | Evidence extraction complete | 3,696 source-side items: 768 train-normal, 1,536 test-normal, 1,392 defect probes; 1024-D raw-DINO evidence; six outer target categories untouched. |
+| 2026-10-05 | E3-A stationary sparse audit complete | Ordinary NIG met the predeclared C4 decision rule through large sparse-regime calibration gains with AUROC non-inferiority. |
+| 2026-10-05 | E3-B contamination audit complete | 10% contaminated writes reduced AUROC by about 2 pp for all models. The tested robust-NIG weighting was nearly neutral on clean data but did not materially reduce contamination damage. |
+| 2026-10-05 | E3 decision | Retain ordinary diagonal NIG / Student-t as the default normal-state model. Do not retain hierarchical NIG or the tested robust-NIG extension as defaults. |
+
+
+## 14. E3 results and decision (2026-10-05)
+
+### 14.1 Evidence audit
+
+The uploaded evidence manifest contains 3,696 source-side image evidence vectors:
+768 train-normal, 1,536 test-normal, and 1,392 defect probes. Each vector is
+1024-D raw-DINO evidence. All 24 source categories were included, while the six
+outer target categories (audiojack, bottle_cap, button_battery, end_cap, eraser,
+fire_hood) remained untouched.
+
+All four stationary source-CV files and all four contamination source-CV files
+completed with no skipped held-out categories/conditions.
+
+### 14.2 E3-A: deterministic diagonal Gaussian vs ordinary NIG
+
+The decisive result is predictive calibration, not a large anomaly-ranking gain.
+
+At sparse initialization (q=0), ordinary NIG preserved essentially the same
+AUROC as the deterministic comparator while reducing 90% predictive-interval
+calibration error dramatically:
+
+| State shots | Deterministic calibration error | NIG calibration error | NIG - deterministic AUROC |
+|---:|---:|---:|---:|
+| 1 | 0.1006 | 0.0352 | -0.0002 |
+| 2 | 0.3820 | 0.0315 | +0.0023 |
+| 4 | 0.1919 | 0.0295 | +0.0058 |
+
+After four verified-normal updates the same pattern remained:
+
+| State shots | Deterministic calibration error | NIG calibration error | NIG - deterministic AUROC |
+|---:|---:|---:|---:|
+| 1 | 0.1311 | 0.0184 | +0.0017 |
+| 2 | 0.1104 | 0.0188 | -0.0009 |
+| 4 | 0.0828 | 0.0183 | -0.0031 |
+
+At q=32 the deterministic estimator had largely caught up, but NIG still had
+lower calibration error (about 0.0076--0.0079 versus 0.0170--0.0180) and its
+AUROC difference remained only about -0.0007 to -0.0013.
+
+Therefore ordinary NIG passes the predeclared C4 rule:
+* all matched NIG AUROC differences are well inside the -0.01 non-inferiority margin;
+* in the sparse 1/2-shot regime, the calibration-error reduction is much larger
+  than the required 0.02 at multiple checkpoints.
+
+Support-seed AUROC variability was not consistently reduced by >=20%, so that
+criterion is **not** claimed. The C4 support comes from sparse predictive
+calibration with operationally unchanged anomaly utility.
+
+### 14.3 Important deterministic-baseline caveat
+
+The deterministic comparator is intentionally a simple running plug-in
+diagonal Gaussian. With two or four initialization items its raw variance
+estimate is extremely data-poor, so the very large q=0 calibration errors
+partly reflect that intended simple-baseline brittleness.
+
+The result therefore supports the proposal-level statement
+"NIG is preferable to the matched simple plug-in Gaussian under sparse
+normal-state evidence." It should not be inflated into a claim that NIG has
+already beaten every possible deterministic shrinkage estimator.
+
+A stronger deterministic-shrinkage control can be added later only if a
+reviewer-level decomposition of Bayesian uncertainty versus shrinkage becomes
+necessary; it is not required to decide the current E3 default.
+
+### 14.4 Hierarchical NIG
+
+The empirical-Bayes hierarchical prior was strong: median coordinate-wise
+kappa0 was about 4.70--4.92 across the four source-CV folds, versus 0.01 for the
+ordinary weak NIG prior.
+
+This reduced support-seed sensitivity and further improved interval calibration,
+but it consistently traded away anomaly utility. Relative to ordinary NIG,
+hierarchical NIG AUROC was lower by:
+
+* q=0: -0.0064 / -0.0165 / -0.0195 for 1/2/4-shot;
+* q=4: -0.0205 / -0.0182 / -0.0154;
+* q=32: -0.0044 / -0.0046 / -0.0039.
+
+The lower state drift is therefore not automatically a virtue; the strong prior
+also suppresses legitimate held-out-product adaptation.
+
+Decision: **do not retain hierarchical NIG as the default**. It is a useful
+regularization diagnostic but ordinary NIG gives the better calibration/utility
+trade-off.
+
+### 14.5 E3-B: 10% contaminated verified-normal writes
+
+At q=32, replacing about 10% of nominal normal updates with held-out defect
+evidence reduced AUROC for every model.
+
+Aggregate AUROC damage (noisy minus clean):
+
+| Model | 2-shot | 4-shot |
+|---|---:|---:|
+| Deterministic diagonal | -0.0225 | -0.0211 |
+| Ordinary NIG | -0.0218 | -0.0203 |
+| Hierarchical NIG | -0.0196 | -0.0190 |
+| Robust NIG | -0.0210 | -0.0194 |
+
+The tested robust NIG was almost exactly neutral on the clean stream
+(+0.00030 AUROC at 2-shot, approximately 0 at 4-shot), which is desirable.
+However, its contamination protection was very small: only about +0.00074
+(2-shot) and +0.00096 (4-shot) AUROC relative to ordinary NIG's damage.
+
+Its mean influence weights also show why the effect was small:
+clean updates retained about 0.976 weight while contaminated updates still
+retained about 0.933--0.936. The robust rule did not separate contaminated
+observations strongly enough.
+
+Decision: **do not retain this robust-NIG weighting as a default mechanism**.
+
+### 14.6 Calibration under contamination must be interpreted carefully
+
+Several models showed numerically smaller 90% coverage error after
+contamination, even while AUROC and defect-normal surprise separation became
+worse. This is not evidence that contamination helped. Contaminated writes can
+broaden/shift the estimated normal state, making marginal intervals look closer
+to nominal coverage while simultaneously absorbing anomalous structure.
+
+For E4 safety, anomaly utility and collateral normal-state expansion must
+therefore accompany calibration; coverage alone is insufficient.
+
+### 14.7 Final E3 decision
+
+The selected normal-state model for the next stage is:
+
+```text
+diagonal Normal-Inverse-Gamma (NIG) + Student-t posterior predictive
+```
+
+Reason:
+* materially superior sparse-regime predictive calibration;
+* AUROC operationally non-inferior to the deterministic comparator at every
+  tested stationary condition;
+* explicit epistemic uncertainty is available for later governance/querying;
+* hierarchical transfer added excessive prior inertia;
+* the tested robust weighting did not materially protect against 10% bad writes.
+
+This supports the narrow C4 claim that explicit Bayesian mean/variance
+uncertainty is useful for sparse normal-state governance. It does **not** yet
+establish the full E4 factor-addressed write mechanism or C5 active query policy.
