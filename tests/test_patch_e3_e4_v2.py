@@ -50,8 +50,8 @@ class PatchE3E4Tests(unittest.TestCase):
         groups=[['held0','held1'],[],[],[]]
         for cat in ['dev0','dev1','held0','held1']:
             for role,n in [('train_normal',12),('test_normal',4),('defect',3)]:
-                for _ in range(n):
-                    items.append({'category':cat,'role':role})
+                for k in range(n):
+                    items.append({'category':cat,'role':role,'image_id':f'{cat}/{role}/{k}'})
                     x=rng.normal(0,.2,(784,16))
                     if role=='defect': x[:64]+=3
                     patches.append(torch.tensor(x,dtype=torch.float16))
@@ -63,6 +63,8 @@ class PatchE3E4Tests(unittest.TestCase):
         for row in result['results']:
             self.assertEqual(row['n_queries'],8)
             self.assertEqual(row['n_sentinel_normal'],2)
+            self.assertTrue(set(row['queried_image_ids']).isdisjoint(row['sentinel_image_ids']))
+            self.assertEqual(len(set(row['queried_image_ids'])),len(row['queried_image_ids']))
             br=row['checkpoints'][-1]['branches']
             for key in ('broadcast','selective','shuffled'):
                 self.assertAlmostEqual(sum(br[key]['effective_mass']),24)
