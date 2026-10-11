@@ -30,7 +30,7 @@ class PatchE3E4Tests(unittest.TestCase):
 
     def test_credit_mass_and_write_location(self):
         s = m.PatchState(np.zeros(16), np.ones(16), groups=8)
-        p = np.full((8,16),2.)
+        p = np.tile(np.arange(16, dtype=float), (8,1))
         perm = np.roll(np.arange(8),1)
         b=m.choose_credit(s,p,'broadcast',perm)
         c=m.choose_credit(s,p,'selective',perm)
@@ -38,8 +38,8 @@ class PatchE3E4Tests(unittest.TestCase):
         self.assertAlmostEqual(b.sum(),1.)
         self.assertAlmostEqual(c.sum(),1.)
         self.assertAlmostEqual(d.sum(),1.)
-        self.assertEqual(np.count_nonzero(c),1)
-        self.assertEqual(np.count_nonzero(d),1)
+        self.assertEqual(np.count_nonzero(c),8)
+        self.assertEqual(np.count_nonzero(d),8)
         self.assertFalse(np.array_equal(c,d))
         self.assertTrue(np.array_equal(m.choose_credit(s,p,'frozen',perm),
                                        np.zeros(8)))
@@ -62,7 +62,7 @@ class PatchE3E4Tests(unittest.TestCase):
         self.assertEqual(len(result['results']),2)
         for row in result['results']:
             self.assertEqual(row['n_queries'],8)
-            self.assertEqual(row['n_sentinel_normal'],4)
+            self.assertEqual(row['n_sentinel_normal'],2)
             br=row['checkpoints'][-1]['branches']
             for key in ('broadcast','selective','shuffled'):
                 self.assertAlmostEqual(sum(br[key]['effective_mass']),24)
