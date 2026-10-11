@@ -50,7 +50,7 @@ class PatchState:
     NIG has a Student-t posterior predictive; Gaussian uses point estimates with
     shrinkage toward the same development variance. No trainable encoder.
     """
-    def __init__(self, mean, var, model='nig', groups=8):
+    def __init__(self, mean, var, model='nig', groups=8, calibration=None):
         if model not in MODELS or mean.shape != var.shape:
             raise ValueError('bad model or prior')
         if mean.size % groups:
@@ -63,6 +63,9 @@ class PatchState:
         self.beta = 1.5 * self.var0.copy()
         self.mass = np.zeros(groups, dtype=float)
         self.m2 = np.zeros(mean.size, dtype=float)
+        center, scale = calibration if calibration is not None else (np.zeros(groups), np.ones(groups))
+        self.reference_center = np.asarray(center, dtype=float)
+        self.reference_scale = np.maximum(np.asarray(scale, dtype=float), 1e-4)
 
     def update(self, patches, credit):
         p = np.asarray(patches, dtype=float)
@@ -110,7 +113,8 @@ class PatchState:
     def image_evidence(self, patches, k=8):
         surprise = self.surprise(patches)
         kk = min(k, len(surprise))
-        return np.partition(surprise, -kk, axis=0)[-kk:].mean(axis=0)
+        tail = np.partition(surprise, -kk, axis=0)[-kk:].mean(axis=0)
+        return (tail-self.reference_center)/self.reference_scale
 
 
 def image_score(state, patches):
@@ -121,14 +125,15 @@ def choose_credit(state, patches, policy, permutation):
     g = state.groups
     if policy == 'frozen': return np.zeros(g)
     if policy == 'broadcast': return np.full(g, 1.0/g)
-    # Responsibility is PRE-UPDATE surprise, not a known true factor address.
+    # Softmax of source-standardized PRE-UPDATE factor surprise (not oracle credit).
     evidence = state.image_evidence(patches)
-    j = int(np.argmax(evidence))
-    if policy == 'shuffled': j = int(permutation[j])
-    if policy not in POLICIES: raise ValueError(policy)
-    out = np.zeros(g)
-    out[j] = 1.0
-    return out
+    z = (evidence-evidence.mean())/max(float(evidence.std()), 1e-6)
+    z = 2.0*z
+    weights = np.exp(z-z.max())
+    weights /= weights.sum()
+    if policy == 'selective': return weights
+    if policy == 'shuffled': return weights[np.asarray(permutation, dtype=int)]
+    raise ValueError(policy)
 
 
 def evaluate(state, normal, defects):
@@ -156,13 +161,18 @@ def prior_from_dev(a, heldout, sample_images=3, sample_patches=16):
     x = np.concatenate(rows, axis=0)
     mean = np.mean(x, axis=0)
     var = np.maximum(np.var(x, axis=0), 1e-5)
-    return mean, var
+    calibration = {}
+    for model in MODELS:
+        reference = PatchState(mean, var, model)
+        nll = reference.surprise(x)
+        calibration[model] = (nll.mean(axis=0), np.maximum(nll.std(axis=0), 0.05))
+    return mean, var, calibration
 
 
 def run(a, mode, cv_fold, budget, seed, support=2, patch_batch=32):
     if mode not in ('e3','e4a'): raise ValueError('stage only e3 or e4a')
     heldout = set(a['source_cv_groups'][cv_fold])
-    mean, var = prior_from_dev(a, heldout)
+    mean, var, calibration = prior_from_dev(a, heldout)
     bycat = {c: {'train_normal': [], 'test_normal': [], 'defect': []} for c in heldout}
     for i, row in enumerate(a['items']):
         if row['category'] in bycat and row['role'] in bycat[row['category']]:
@@ -178,7 +188,10 @@ def run(a, mode, cv_fold, budget, seed, support=2, patch_batch=32):
     for cat in sorted(heldout):
         ids = bycat[cat]
         train = rng.permutation(ids['train_normal']).tolist()
-        sent_normal = sorted(ids['test_normal'])
+        split = rng.permutation(ids['test_normal']).tolist()
+        n_future = max(1, len(split)//2)
+        sent_normal = sorted(split[:n_future])
+        candidate_test_normal = split[n_future:]
         sent_defect = sorted(ids['defect'])
         if len(train) < support+1 or not sent_normal or not sent_defect:
             out.setdefault('skipped',[]).append({'category':cat,'train_normal':len(train),
@@ -186,18 +199,18 @@ def run(a, mode, cv_fold, budget, seed, support=2, patch_batch=32):
             continue
         patches = a['candidate_features']
         supports = train[:support]
-        candidate = train[support:]
+        candidate = train[support:] + candidate_test_normal
         sentinel_n = [patches[i][:64].numpy().astype('float64') for i in sent_normal]
         sentinel_d = [patches[i][:64].numpy().astype('float64') for i in sent_defect]
         types = MODELS if mode == 'e3' else ('nig',)
         branches = {}
         for model in types:
-            state = PatchState(mean, var, model)
+            state = PatchState(mean, var, model, calibration=calibration[model])
             for idx in supports:
                 state.update(rank_samples(patches[idx].numpy(), patch_batch), np.ones(8))
             branches[model] = state
         # Selection uses one frozen initial NIG reference; no queried sentinel labels.
-        selection_state = branches['nig'] if 'nig' in branches else PatchState(mean,var,'nig')
+        selection_state = branches['nig'] if 'nig' in branches else PatchState(mean,var,'nig',calibration=calibration['nig'])
         if 'nig' not in branches:
             for idx in supports: selection_state.update(rank_samples(patches[idx].numpy(), patch_batch), np.ones(8))
         ordered = sorted(candidate, key=lambda i: image_score(selection_state, patches[i][:64].numpy()), reverse=True)
@@ -218,6 +231,8 @@ def run(a, mode, cv_fold, budget, seed, support=2, patch_batch=32):
                 credit = np.ones(8) if mode=='e3' else choose_credit(st,z,name,permutation)
                 if credit.any(): st.update(z,credit)
         out['results'].append({'category':cat,'n_support':len(supports),
+                               'queried_image_ids':[a['items'][i]['image_id'] for i in queried],
+                               'sentinel_image_ids':[a['items'][i]['image_id'] for i in sent_normal+sent_defect],
                                'n_queries':len(queried), 'n_sentinel_normal':len(sent_normal),
                                'n_sentinel_defect':len(sent_defect), 'checkpoints':checkpoints})
     if not out['results']: raise RuntimeError('No evaluable categories; increase normal/defect extraction caps')
