@@ -9,9 +9,13 @@ This is a new **source-side mechanism-validation protocol**. Earlier E3/E4 files
 - All compared models see identical supports and query examples. Evaluate future sentinel normal surprise, defect surprise and AUROC at 0, 4, 8, 16 and 32 updates where available.
 
 ## E4A: factor-addressed normal memory
-Hold the NIG model fixed; compare no-update, mass-matched broadcast (1/8 to each address), predicted-surprise selective (one-hot), and deranged wrong-address credit (one-hot). All branches see identical verified normal queries. Updates have one total effective sample mass per feedback image, distributed across selected patches and factor addresses. Record per-address mass and future sentinel metrics.
+Hold the NIG model fixed; compare no-update, mass-matched broadcast (1/8 to each address), softmax of source-standardized pre-update factor surprise, and a fixed derangement of that same responsibility vector. All branches see identical verified normal queries. Updates have one total effective sample mass per feedback image, distributed across selected patches and factor addresses. Record per-address mass and future sentinel metrics.
 
 This experiment deliberately makes informative feedback available to validate the mechanism. The known-normal high-surprise query schedule is **offline-only** and not a deployable selection policy. It is not a claim of proof of C2/C4. A score drop in both normals and defects is not automatically an anomaly detection improvement.
+
+## E4B: source-enriched defect-source attribution
+
+After the E3 normal model has been inspected, freeze its category normal state and evaluate the SOURCE centroid q_d in eight-factor responsibility space. Each Core-4 defect source starts with one verified development-product exemplar; the held-out source-CV categories supply offline source-balanced verified defect feedback and an independent source-stratified sentinel. Compare frozen source memory, mass-matched broadcast, correct-source one-hot and deranged shuffled-source one-hot with identical feedback events. Readouts: future defect-source macro-F1, accuracy, and true-source margin. This **does not** yet apply the source centroid to the Bayesian normal belief or to a positive anomaly-correction bank; image AUROC/FPR cannot improve from E4B as implemented.
 
 ## Representation limits
 The eight disjoint DINO raw-coordinate groups are operational addresses, NOT demonstrated causal or disentangled factors. Patch order in the cache is sorted by frozen anomaly score, not image position, so this audits patchwise density but not spatially indexed localization. The fractional intra-image NIG update is a composite-likelihood approximation for correlated patches. There is no proof of independent samples within an image.
@@ -29,7 +33,11 @@ python scripts/abmg_patch_e3_e4_v2.py --mode e3 --fold 0 --source-cv-fold 0 --ev
 
 python scripts/abmg_patch_e3_e4_v2.py --mode e4a --fold 0 --source-cv-fold 0 --evidence outputs/patch_evidence/fold_0/e4_evidence.pt --budget 16
 
-Results: outputs/patch_e3_e4_v2/fold_0/cv_0/patch_e3_audit.json and patch_e4a_audit.json
+4. After E4A, run E4B:
+
+python scripts/abmg_patch_e4b_v2.py --fold 0 --source-cv-fold 0 --evidence outputs/patch_evidence/fold_0/e4_evidence.pt --budget 32
+
+Results: outputs/patch_e3_e4_v2/fold_0/cv_0/patch_e3_audit.json, patch_e4a_audit.json, patch_e4b_audit.json
 
 ## Safeguards and future work
-Only source categories participate; the outer-target products are not loaded or evaluated. Development priors use TRAIN normals, while test-normal and defect sentinels never write. Query identities are offline-known normals, never sentinel observations. E4B source-enriched defect credit is **a separate subsequent experiment**, not validated by this code. After checking this initial CV fold, test four source-CV folds and seeds before any target evaluation.
+Only source categories participate; the outer-target products are not loaded or evaluated. Development priors use TRAIN normals, while test-normal and defect sentinels never write. Query identities are offline-known normals, never sentinel observations. E4B evaluates source-to-factor responsibility memory only, not positive patch correction; E4C integration is deferred until the individual mechanism results justify it. After checking this initial CV fold, test four source-CV folds and seeds before any target evaluation.
