@@ -20,6 +20,30 @@ Frozen DINOv2 + primary open-set Normal NN + governed bounded mutable memory and
 5. **No leakage**: prequential `score→predict→query→reveal→update`. Hidden target GT/type/mask only for external evaluator, not memory, router or controller. Image-level binary FN does not identify defective patches.
 6. **Stage-gated research**: P0 first; G0 only after user approval. Do not batch-implement G1-G4. Simple baselines must be allowed to win; don't force factorization, NIG or AIF.
 
+## P0 implementation checkpoint (2026-10-23)
+
+**P0 draft files committed; NOT YET REVIEW-CLOSED / G0 NOT AUTHORIZED.** No legacy inference or full G0 replay was run.
+
+- `configs/stage3/experiment_manifest_v1.json` — source-grounded manifest, legacy paper vs argparse differences and explicit unresolved readiness fields.
+- `configs/stage3/source_cv_v1.json` — all 5 sealed outer folds and 20 explicit 18/6 source-CV groups.
+- `docs/STAGE3_CANONICAL_MEMORY_IO_V1.md` — immutable sensor, mutable state, router, governance, sidecar, feedback, replay I/O and invariants.
+- `docs/STAGE3_FEEDBACK_AUTHORITY_AND_COST_V1.md` — B/R authority, paid rich upgrade, field-hiding ablations and missing-mask behavior.
+- `scripts/stage3_p0_validate.py` — stdlib-only, read-only manifest/fold/source-CV checks and preliminary agent-view event visibility lint.
+- `tests/test_stage3_p0_contract.py` — synthetic validation tests. `.github/workflows/stage3-p0.yml` is a narrow CI check (when GitHub Actions is enabled).
+- Existing v22/visionad/inventory/Stage-2 experiment code remains unchanged. Do NOT substitute the uploaded local copy of v22 for the exact Git blob until its differences are audited.
+
+The historical main-paper experimental configuration is not the argparse default of v22: examples include Fixed bank 25,000 vs default 4,096, Correction 1,024 vs 256, Max image aggregation vs topk_mean default, and approx 3% query rate vs 6% script default. The original CLI/run log is required to establish which flags produced the reported results.
+
+Run after local sync:
+```powershell
+python -m unittest discover -s tests -p "test_stage3_p0*.py" -v
+python scripts/stage3_p0_validate.py
+python scripts/stage3_p0_validate.py --strict
+```
+The first two should pass; `--strict` is designed to **fail** while unresolved real-data/source artifacts remain. A structural pass does not mean G0 ready.
+
+**Still missing before P0 approval:** full historical v22 run CLI and item-level result trace, DINO and preprocessing hashes, support image IDs and support-candidate provenance, source dataset/index hashes and physical Mask validation, actual Sidecar parameters/capacities, chosen fixed replay query IDs, measured or preregistered B/R seconds, and source-only safety/compute thresholds. These are evidence and decisions, not safe to guess.
+
 ## Current task: P0 protocol freeze ONLY
 
 - Gather legacy source paper/supplement, v22 source, true run configs and logs; define exact DINO/sensor/score and Support+Sidecar interface.
