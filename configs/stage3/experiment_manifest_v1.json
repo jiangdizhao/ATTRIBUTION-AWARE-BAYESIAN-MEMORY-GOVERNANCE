@@ -1,0 +1,177 @@
+{
+  "schema": "eg-famar.experiment_manifest.v1",
+  "phase": "P0",
+  "status": "DRAFT_BLOCKED",
+  "date": "2026-10-23",
+  "branch": "stage3-eg-famar-execution",
+  "source": {
+    "base_commit": "3b772a0737cce8d1f11897db7064441a476e9cf1",
+    "v22_path": "scripts/test_phase3_AIF_simplified_v22.py",
+    "v22_blob_sha": "6c975d48e6e6a213447d2893aeae0816ba550166",
+    "visionad_path": "scripts/vmb_visionad_new.py",
+    "visionad_blob_sha": "2987372b43b54eb6d81590d80fdd33471633a86e",
+    "inventory_path": "scripts/abmg_realiad_dataset_inventory.py",
+    "inventory_blob_sha": "8f5583adf14dacc278cda5f3a8349357457c42a8",
+    "prior_paper": "pattern_recognition_main_elsarticle_v_10.pdf",
+    "prior_supplement": "pattern_recognition_supplementary_v_10(1).pdf",
+    "primary_proposal": "EG_FAMAR_Research_Plan_English_2026-10-22.pdf",
+    "legacy_exact_cli": null,
+    "legacy_result_trace": null
+  },
+  "dataset": {
+    "name": "Real-IAD",
+    "outer_folds_path": "configs/realiad_folds_v0.json",
+    "outer_folds_blob_sha": "febbfc7005c826881c2593ceee16a92ca687417f",
+    "outer_folds": 5,
+    "target_categories_per_fold": 6,
+    "source_cv": "four other original outer-fold blocks, each held out in turn as 6 source-validation categories; remaining 18 development categories",
+    "training_normal_only": true,
+    "sealed_targets_evaluator_only": true,
+    "metadata_dir": null,
+    "data_root": null,
+    "dataset_index_sha256": null,
+    "physical_mask_verified": false
+  },
+  "sensor": {
+    "backbone": "dinov2_vitl14_reg",
+    "frozen": true,
+    "legacy_exact_profile_unverified": true,
+    "checkpoint_sha256": null,
+    "preprocessing_sha256": null,
+    "feature_cache_sha256": null,
+    "reported_feature_fusion": "concat",
+    "reported_image_aggregation": "max",
+    "single_query_view": true,
+    "stage0_cache_not_assumed_equivalent": true
+  },
+  "support": {
+    "policy": "deterministic mode-central normal inliers",
+    "number_of_modes_reported": 1,
+    "shots_per_mode": 4,
+    "augmentation_per_shot_reported": 4,
+    "extra_normal_train_candidate_pool_used_for_selection": true,
+    "immutable_fixed_bank": true,
+    "support_ids_path": null,
+    "support_provenance_sha256": null,
+    "random_support_robustness_seeds": [
+      0,
+      1,
+      2
+    ],
+    "cold_start_auxiliary_disabled": true
+  },
+  "memory": {
+    "fixed_bank_reported_cap": 25000,
+    "fixed_bank_reported_per_image_cap": 5000,
+    "stm_reported_cap": 1024,
+    "ltm_reported_cap": 512,
+    "correction_reported_cap": 1024,
+    "verify_actual_run_capacities": false
+  },
+  "threshold": {
+    "controller": "guarded_dual_anchor",
+    "initialization": "support_score_mean + 2.5*max(support_score_std,1e-6)",
+    "labeled_reservoir_caps": {
+      "normal": 512,
+      "defect": 512,
+      "recent": 96
+    },
+    "legacy_exact_sidecar_parameters": null,
+    "mechanism_isolation": "fixed threshold + matched query replay",
+    "closed_loop": "per-branch causal labeled update under same predeclared sidecar rules"
+  },
+  "feedback": {
+    "operator_tiers": [
+      "B",
+      "R"
+    ],
+    "B": {
+      "fields": [
+        "binary"
+      ],
+      "values": [
+        "normal",
+        "defect"
+      ]
+    },
+    "R": {
+      "requires_queried_defect": true,
+      "fields": [
+        "binary",
+        "defect_type",
+        "mask"
+      ],
+      "binary_first": true,
+      "extra_cost_charged": true
+    },
+    "no_point_scribble_box": true,
+    "missing_rich_fields": "fail-closed to B, never synthesize mask",
+    "binary_seconds": null,
+    "rich_incremental_seconds": null,
+    "unqueried_gt_visible": false,
+    "unknown_defect_type_from_future_gt_forbidden": true
+  },
+  "query": {
+    "legacy_policy": "simple_aif/BEA",
+    "historical_target_qrate": 0.03,
+    "legacy_query_id_trace": null,
+    "identical_ids_for_mechanism_isolation": true,
+    "matched_human_minutes_for_g4": true
+  },
+  "evaluation": {
+    "prequential": true,
+    "metrics": [
+      "AUROC",
+      "AUPRC",
+      "FPR@95%-TPR",
+      "FNR",
+      "unknown-defect recall",
+      "future normal coverage",
+      "off-address interference"
+    ],
+    "source_locked_max_unknown_recall_drop": null,
+    "source_locked_min_future_normal_gain": null,
+    "source_locked_threshold_protocol": null,
+    "source_locked_memory_compute_budget": null,
+    "independent_statistical_unit": "product_category"
+  },
+  "historical_reference_only": {
+    "static": {
+      "accuracy": 0.5522,
+      "auroc": 0.8324,
+      "fpr": 0.7908,
+      "fnr": 0.0328
+    },
+    "legacy_full": {
+      "accuracy": 0.7837,
+      "auroc": 0.8801,
+      "fpr": 0.3144,
+      "fnr": 0.118,
+      "qrate": 0.0303
+    }
+  },
+  "required_before_g0": [
+    "source.legacy_exact_cli",
+    "source.legacy_result_trace",
+    "dataset.metadata_dir",
+    "dataset.data_root",
+    "dataset.dataset_index_sha256",
+    "dataset.physical_mask_verified",
+    "sensor.legacy_exact_profile_unverified",
+    "sensor.checkpoint_sha256",
+    "sensor.preprocessing_sha256",
+    "sensor.feature_cache_sha256",
+    "support.support_ids_path",
+    "support.support_provenance_sha256",
+    "memory.verify_actual_run_capacities",
+    "threshold.legacy_exact_sidecar_parameters",
+    "feedback.binary_seconds",
+    "feedback.rich_incremental_seconds",
+    "query.legacy_query_id_trace",
+    "evaluation.source_locked_max_unknown_recall_drop",
+    "evaluation.source_locked_min_future_normal_gain",
+    "evaluation.source_locked_threshold_protocol",
+    "evaluation.source_locked_memory_compute_budget"
+  ],
+  "caveat": "Draft-only P0. Unresolved null/false/true blockers must not be filled from intuition. Legacy v22 CLI defaults differ from historical paper: fixed 4096 vs paper 25000, correction 256 vs 1024, topk_mean vs max, query 0.06 vs 0.03. Reconcile actual commands and logs before G0; do not assume Stage-0 cache equivalence."
+}
