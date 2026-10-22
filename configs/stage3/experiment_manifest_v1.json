@@ -30,7 +30,9 @@
     "metadata_dir": null,
     "data_root": null,
     "dataset_index_sha256": null,
-    "physical_mask_verified": false
+    "physical_mask_verified": false,
+    "source_cv_file": "configs/stage3/source_cv_v1.json",
+    "source_cv_frozen": true
   },
   "sensor": {
     "backbone": "dinov2_vitl14_reg",
@@ -173,5 +175,5 @@
     "evaluation.source_locked_threshold_protocol",
     "evaluation.source_locked_memory_compute_budget"
   ],
-  "caveat": "Draft-only P0. Unresolved null/false/true blockers must not be filled from intuition. Legacy v22 CLI defaults differ from historical paper: fixed 4096 vs paper 25000, correction 256 vs 1024, topk_mean vs max, query 0.06 vs 0.03. Reconcile actual commands and logs before G0; do not assume Stage-0 cache equivalence."
+  "caveat": "Draft-only P0. Unresolved null/false/true blockers must not be filled from intuition. Legacy v22 CLI defaults differ from historical paper: fixed 4096 vs paper 25000, correction 256 vs 1024, topk_mean vs max, query 0.06 vs 0.03. Reconcile actual commands and logs before G0; do not assume Stage-0 cache equivalence. Stage-3 source_cv_file materializes all 20 partitions; do not reassign source folds."
 }
