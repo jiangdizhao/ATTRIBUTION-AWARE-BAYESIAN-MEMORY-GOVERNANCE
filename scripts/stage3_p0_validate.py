@@ -108,6 +108,27 @@ def check_manifest(path: Path = DEFAULT_MANIFEST, *, strict: bool = False) -> di
     except (KeyError, ValueError, OSError) as exc:
         problems.append(f"Fold contract: {exc}")
         partitions = []
+    try:
+        source_cv = load_json(REPO / m["dataset"]["source_cv_file"])
+        if source_cv.get("schema") != "eg-famar.source_cv.v1":
+            raise ValueError("Source CV schema mismatch")
+        declared = source_cv.get("outer_folds", [])
+        if len(declared) != len(partitions):
+            raise ValueError("Source CV outer fold count mismatch")
+        for expected, actual in zip(partitions, declared):
+            if actual.get("outer_fold") != expected["outer_fold"]:
+                raise ValueError("Source CV outer fold index mismatch")
+            if set(actual.get("sealed_target", [])) != set(expected["sealed_target"]):
+                raise ValueError("Source CV sealed target mismatch")
+            if len(actual.get("source_cv", [])) != 4:
+                raise ValueError("Source CV requires four groups")
+            for e, a in zip(expected["source_cv"], actual["source_cv"]):
+                if (a.get("held_out_original_block") != e["source_validation_fold"]
+                    or set(a.get("development_categories", [])) != set(e["development"])
+                    or set(a.get("validation_categories", [])) != set(e["validation"])):
+                    raise ValueError("Frozen Source CV partition mismatch")
+    except (KeyError, ValueError, OSError) as exc:
+        problems.append(f"Frozen source-CV contract: {exc}")
     for path_key in ("v22_path", "visionad_path", "inventory_path"):
         src = m.get("source", {}).get(path_key)
         if not isinstance(src, str) or not (REPO / src).is_file():
