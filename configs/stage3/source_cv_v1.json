@@ -1,0 +1,823 @@
+{
+  "schema": "eg-famar.source_cv.v1",
+  "source_outer_folds": "configs/realiad_folds_v0.json",
+  "source_outer_folds_git_blob_sha": "febbfc7005c826881c2593ceee16a92ca687417f",
+  "policy": "For each sealed outer target, hold out each of the four other original six-category outer blocks once as source-CV validation; development is the other 18 source categories. Never use the sealed target to select hyperparameters.",
+  "outer_folds": [
+    {
+      "outer_fold": 0,
+      "sealed_target": [
+        "audiojack",
+        "bottle_cap",
+        "button_battery",
+        "end_cap",
+        "eraser",
+        "fire_hood"
+      ],
+      "source_categories": [
+        "mint",
+        "mounts",
+        "pcb",
+        "phone_battery",
+        "plastic_nut",
+        "plastic_plug",
+        "porcelain_doll",
+        "regulator",
+        "rolled_strip_base",
+        "sim_card_set",
+        "switch",
+        "tape",
+        "terminalblock",
+        "toothbrush",
+        "toy",
+        "toy_brick",
+        "transistor1",
+        "usb",
+        "usb_adaptor",
+        "u_block",
+        "vcpill",
+        "wooden_beads",
+        "woodstick",
+        "zipper"
+      ],
+      "source_cv": [
+        {
+          "held_out_original_block": 1,
+          "development_categories": [
+            "porcelain_doll",
+            "regulator",
+            "rolled_strip_base",
+            "sim_card_set",
+            "switch",
+            "tape",
+            "terminalblock",
+            "toothbrush",
+            "toy",
+            "toy_brick",
+            "transistor1",
+            "usb",
+            "usb_adaptor",
+            "u_block",
+            "vcpill",
+            "wooden_beads",
+            "woodstick",
+            "zipper"
+          ],
+          "validation_categories": [
+            "mint",
+            "mounts",
+            "pcb",
+            "phone_battery",
+            "plastic_nut",
+            "plastic_plug"
+          ]
+        },
+        {
+          "held_out_original_block": 2,
+          "development_categories": [
+            "mint",
+            "mounts",
+            "pcb",
+            "phone_battery",
+            "plastic_nut",
+            "plastic_plug",
+            "terminalblock",
+            "toothbrush",
+            "toy",
+            "toy_brick",
+            "transistor1",
+            "usb",
+            "usb_adaptor",
+            "u_block",
+            "vcpill",
+            "wooden_beads",
+            "woodstick",
+            "zipper"
+          ],
+          "validation_categories": [
+            "porcelain_doll",
+            "regulator",
+            "rolled_strip_base",
+            "sim_card_set",
+            "switch",
+            "tape"
+          ]
+        },
+        {
+          "held_out_original_block": 3,
+          "development_categories": [
+            "mint",
+            "mounts",
+            "pcb",
+            "phone_battery",
+            "plastic_nut",
+            "plastic_plug",
+            "porcelain_doll",
+            "regulator",
+            "rolled_strip_base",
+            "sim_card_set",
+            "switch",
+            "tape",
+            "usb_adaptor",
+            "u_block",
+            "vcpill",
+            "wooden_beads",
+            "woodstick",
+            "zipper"
+          ],
+          "validation_categories": [
+            "terminalblock",
+            "toothbrush",
+            "toy",
+            "toy_brick",
+            "transistor1",
+            "usb"
+          ]
+        },
+        {
+          "held_out_original_block": 4,
+          "development_categories": [
+            "mint",
+            "mounts",
+            "pcb",
+            "phone_battery",
+            "plastic_nut",
+            "plastic_plug",
+            "porcelain_doll",
+            "regulator",
+            "rolled_strip_base",
+            "sim_card_set",
+            "switch",
+            "tape",
+            "terminalblock",
+            "toothbrush",
+            "toy",
+            "toy_brick",
+            "transistor1",
+            "usb"
+          ],
+          "validation_categories": [
+            "usb_adaptor",
+            "u_block",
+            "vcpill",
+            "wooden_beads",
+            "woodstick",
+            "zipper"
+          ]
+        }
+      ]
+    },
+    {
+      "outer_fold": 1,
+      "sealed_target": [
+        "mint",
+        "mounts",
+        "pcb",
+        "phone_battery",
+        "plastic_nut",
+        "plastic_plug"
+      ],
+      "source_categories": [
+        "audiojack",
+        "bottle_cap",
+        "button_battery",
+        "end_cap",
+        "eraser",
+        "fire_hood",
+        "porcelain_doll",
+        "regulator",
+        "rolled_strip_base",
+        "sim_card_set",
+        "switch",
+        "tape",
+        "terminalblock",
+        "toothbrush",
+        "toy",
+        "toy_brick",
+        "transistor1",
+        "usb",
+        "usb_adaptor",
+        "u_block",
+        "vcpill",
+        "wooden_beads",
+        "woodstick",
+        "zipper"
+      ],
+      "source_cv": [
+        {
+          "held_out_original_block": 0,
+          "development_categories": [
+            "porcelain_doll",
+            "regulator",
+            "rolled_strip_base",
+            "sim_card_set",
+            "switch",
+            "tape",
+            "terminalblock",
+            "toothbrush",
+            "toy",
+            "toy_brick",
+            "transistor1",
+            "usb",
+            "usb_adaptor",
+            "u_block",
+            "vcpill",
+            "wooden_beads",
+            "woodstick",
+            "zipper"
+          ],
+          "validation_categories": [
+            "audiojack",
+            "bottle_cap",
+            "button_battery",
+            "end_cap",
+            "eraser",
+            "fire_hood"
+          ]
+        },
+        {
+          "held_out_original_block": 2,
+          "development_categories": [
+            "audiojack",
+            "bottle_cap",
+            "button_battery",
+            "end_cap",
+            "eraser",
+            "fire_hood",
+            "terminalblock",
+            "toothbrush",
+            "toy",
+            "toy_brick",
+            "transistor1",
+            "usb",
+            "usb_adaptor",
+            "u_block",
+            "vcpill",
+            "wooden_beads",
+            "woodstick",
+            "zipper"
+          ],
+          "validation_categories": [
+            "porcelain_doll",
+            "regulator",
+            "rolled_strip_base",
+            "sim_card_set",
+            "switch",
+            "tape"
+          ]
+        },
+        {
+          "held_out_original_block": 3,
+          "development_categories": [
+            "audiojack",
+            "bottle_cap",
+            "button_battery",
+            "end_cap",
+            "eraser",
+            "fire_hood",
+            "porcelain_doll",
+            "regulator",
+            "rolled_strip_base",
+            "sim_card_set",
+            "switch",
+            "tape",
+            "usb_adaptor",
+            "u_block",
+            "vcpill",
+            "wooden_beads",
+            "woodstick",
+            "zipper"
+          ],
+          "validation_categories": [
+            "terminalblock",
+            "toothbrush",
+            "toy",
+            "toy_brick",
+            "transistor1",
+            "usb"
+          ]
+        },
+        {
+          "held_out_original_block": 4,
+          "development_categories": [
+            "audiojack",
+            "bottle_cap",
+            "button_battery",
+            "end_cap",
+            "eraser",
+            "fire_hood",
+            "porcelain_doll",
+            "regulator",
+            "rolled_strip_base",
+            "sim_card_set",
+            "switch",
+            "tape",
+            "terminalblock",
+            "toothbrush",
+            "toy",
+            "toy_brick",
+            "transistor1",
+            "usb"
+          ],
+          "validation_categories": [
+            "usb_adaptor",
+            "u_block",
+            "vcpill",
+            "wooden_beads",
+            "woodstick",
+            "zipper"
+          ]
+        }
+      ]
+    },
+    {
+      "outer_fold": 2,
+      "sealed_target": [
+        "porcelain_doll",
+        "regulator",
+        "rolled_strip_base",
+        "sim_card_set",
+        "switch",
+        "tape"
+      ],
+      "source_categories": [
+        "audiojack",
+        "bottle_cap",
+        "button_battery",
+        "end_cap",
+        "eraser",
+        "fire_hood",
+        "mint",
+        "mounts",
+        "pcb",
+        "phone_battery",
+        "plastic_nut",
+        "plastic_plug",
+        "terminalblock",
+        "toothbrush",
+        "toy",
+        "toy_brick",
+        "transistor1",
+        "usb",
+        "usb_adaptor",
+        "u_block",
+        "vcpill",
+        "wooden_beads",
+        "woodstick",
+        "zipper"
+      ],
+      "source_cv": [
+        {
+          "held_out_original_block": 0,
+          "development_categories": [
+            "mint",
+            "mounts",
+            "pcb",
+            "phone_battery",
+            "plastic_nut",
+            "plastic_plug",
+            "terminalblock",
+            "toothbrush",
+            "toy",
+            "toy_brick",
+            "transistor1",
+            "usb",
+            "usb_adaptor",
+            "u_block",
+            "vcpill",
+            "wooden_beads",
+            "woodstick",
+            "zipper"
+          ],
+          "validation_categories": [
+            "audiojack",
+            "bottle_cap",
+            "button_battery",
+            "end_cap",
+            "eraser",
+            "fire_hood"
+          ]
+        },
+        {
+          "held_out_original_block": 1,
+          "development_categories": [
+            "audiojack",
+            "bottle_cap",
+            "button_battery",
+            "end_cap",
+            "eraser",
+            "fire_hood",
+            "terminalblock",
+            "toothbrush",
+            "toy",
+            "toy_brick",
+            "transistor1",
+            "usb",
+            "usb_adaptor",
+            "u_block",
+            "vcpill",
+            "wooden_beads",
+            "woodstick",
+            "zipper"
+          ],
+          "validation_categories": [
+            "mint",
+            "mounts",
+            "pcb",
+            "phone_battery",
+            "plastic_nut",
+            "plastic_plug"
+          ]
+        },
+        {
+          "held_out_original_block": 3,
+          "development_categories": [
+            "audiojack",
+            "bottle_cap",
+            "button_battery",
+            "end_cap",
+            "eraser",
+            "fire_hood",
+            "mint",
+            "mounts",
+            "pcb",
+            "phone_battery",
+            "plastic_nut",
+            "plastic_plug",
+            "usb_adaptor",
+            "u_block",
+            "vcpill",
+            "wooden_beads",
+            "woodstick",
+            "zipper"
+          ],
+          "validation_categories": [
+            "terminalblock",
+            "toothbrush",
+            "toy",
+            "toy_brick",
+            "transistor1",
+            "usb"
+          ]
+        },
+        {
+          "held_out_original_block": 4,
+          "development_categories": [
+            "audiojack",
+            "bottle_cap",
+            "button_battery",
+            "end_cap",
+            "eraser",
+            "fire_hood",
+            "mint",
+            "mounts",
+            "pcb",
+            "phone_battery",
+            "plastic_nut",
+            "plastic_plug",
+            "terminalblock",
+            "toothbrush",
+            "toy",
+            "toy_brick",
+            "transistor1",
+            "usb"
+          ],
+          "validation_categories": [
+            "usb_adaptor",
+            "u_block",
+            "vcpill",
+            "wooden_beads",
+            "woodstick",
+            "zipper"
+          ]
+        }
+      ]
+    },
+    {
+      "outer_fold": 3,
+      "sealed_target": [
+        "terminalblock",
+        "toothbrush",
+        "toy",
+        "toy_brick",
+        "transistor1",
+        "usb"
+      ],
+      "source_categories": [
+        "audiojack",
+        "bottle_cap",
+        "button_battery",
+        "end_cap",
+        "eraser",
+        "fire_hood",
+        "mint",
+        "mounts",
+        "pcb",
+        "phone_battery",
+        "plastic_nut",
+        "plastic_plug",
+        "porcelain_doll",
+        "regulator",
+        "rolled_strip_base",
+        "sim_card_set",
+        "switch",
+        "tape",
+        "usb_adaptor",
+        "u_block",
+        "vcpill",
+        "wooden_beads",
+        "woodstick",
+        "zipper"
+      ],
+      "source_cv": [
+        {
+          "held_out_original_block": 0,
+          "development_categories": [
+            "mint",
+            "mounts",
+            "pcb",
+            "phone_battery",
+            "plastic_nut",
+            "plastic_plug",
+            "porcelain_doll",
+            "regulator",
+            "rolled_strip_base",
+            "sim_card_set",
+            "switch",
+            "tape",
+            "usb_adaptor",
+            "u_block",
+            "vcpill",
+            "wooden_beads",
+            "woodstick",
+            "zipper"
+          ],
+          "validation_categories": [
+            "audiojack",
+            "bottle_cap",
+            "button_battery",
+            "end_cap",
+            "eraser",
+            "fire_hood"
+          ]
+        },
+        {
+          "held_out_original_block": 1,
+          "development_categories": [
+            "audiojack",
+            "bottle_cap",
+            "button_battery",
+            "end_cap",
+            "eraser",
+            "fire_hood",
+            "porcelain_doll",
+            "regulator",
+            "rolled_strip_base",
+            "sim_card_set",
+            "switch",
+            "tape",
+            "usb_adaptor",
+            "u_block",
+            "vcpill",
+            "wooden_beads",
+            "woodstick",
+            "zipper"
+          ],
+          "validation_categories": [
+            "mint",
+            "mounts",
+            "pcb",
+            "phone_battery",
+            "plastic_nut",
+            "plastic_plug"
+          ]
+        },
+        {
+          "held_out_original_block": 2,
+          "development_categories": [
+            "audiojack",
+            "bottle_cap",
+            "button_battery",
+            "end_cap",
+            "eraser",
+            "fire_hood",
+            "mint",
+            "mounts",
+            "pcb",
+            "phone_battery",
+            "plastic_nut",
+            "plastic_plug",
+            "usb_adaptor",
+            "u_block",
+            "vcpill",
+            "wooden_beads",
+            "woodstick",
+            "zipper"
+          ],
+          "validation_categories": [
+            "porcelain_doll",
+            "regulator",
+            "rolled_strip_base",
+            "sim_card_set",
+            "switch",
+            "tape"
+          ]
+        },
+        {
+          "held_out_original_block": 4,
+          "development_categories": [
+            "audiojack",
+            "bottle_cap",
+            "button_battery",
+            "end_cap",
+            "eraser",
+            "fire_hood",
+            "mint",
+            "mounts",
+            "pcb",
+            "phone_battery",
+            "plastic_nut",
+            "plastic_plug",
+            "porcelain_doll",
+            "regulator",
+            "rolled_strip_base",
+            "sim_card_set",
+            "switch",
+            "tape"
+          ],
+          "validation_categories": [
+            "usb_adaptor",
+            "u_block",
+            "vcpill",
+            "wooden_beads",
+            "woodstick",
+            "zipper"
+          ]
+        }
+      ]
+    },
+    {
+      "outer_fold": 4,
+      "sealed_target": [
+        "usb_adaptor",
+        "u_block",
+        "vcpill",
+        "wooden_beads",
+        "woodstick",
+        "zipper"
+      ],
+      "source_categories": [
+        "audiojack",
+        "bottle_cap",
+        "button_battery",
+        "end_cap",
+        "eraser",
+        "fire_hood",
+        "mint",
+        "mounts",
+        "pcb",
+        "phone_battery",
+        "plastic_nut",
+        "plastic_plug",
+        "porcelain_doll",
+        "regulator",
+        "rolled_strip_base",
+        "sim_card_set",
+        "switch",
+        "tape",
+        "terminalblock",
+        "toothbrush",
+        "toy",
+        "toy_brick",
+        "transistor1",
+        "usb"
+      ],
+      "source_cv": [
+        {
+          "held_out_original_block": 0,
+          "development_categories": [
+            "mint",
+            "mounts",
+            "pcb",
+            "phone_battery",
+            "plastic_nut",
+            "plastic_plug",
+            "porcelain_doll",
+            "regulator",
+            "rolled_strip_base",
+            "sim_card_set",
+            "switch",
+            "tape",
+            "terminalblock",
+            "toothbrush",
+            "toy",
+            "toy_brick",
+            "transistor1",
+            "usb"
+          ],
+          "validation_categories": [
+            "audiojack",
+            "bottle_cap",
+            "button_battery",
+            "end_cap",
+            "eraser",
+            "fire_hood"
+          ]
+        },
+        {
+          "held_out_original_block": 1,
+          "development_categories": [
+            "audiojack",
+            "bottle_cap",
+            "button_battery",
+            "end_cap",
+            "eraser",
+            "fire_hood",
+            "porcelain_doll",
+            "regulator",
+            "rolled_strip_base",
+            "sim_card_set",
+            "switch",
+            "tape",
+            "terminalblock",
+            "toothbrush",
+            "toy",
+            "toy_brick",
+            "transistor1",
+            "usb"
+          ],
+          "validation_categories": [
+            "mint",
+            "mounts",
+            "pcb",
+            "phone_battery",
+            "plastic_nut",
+            "plastic_plug"
+          ]
+        },
+        {
+          "held_out_original_block": 2,
+          "development_categories": [
+            "audiojack",
+            "bottle_cap",
+            "button_battery",
+            "end_cap",
+            "eraser",
+            "fire_hood",
+            "mint",
+            "mounts",
+            "pcb",
+            "phone_battery",
+            "plastic_nut",
+            "plastic_plug",
+            "terminalblock",
+            "toothbrush",
+            "toy",
+            "toy_brick",
+            "transistor1",
+            "usb"
+          ],
+          "validation_categories": [
+            "porcelain_doll",
+            "regulator",
+            "rolled_strip_base",
+            "sim_card_set",
+            "switch",
+            "tape"
+          ]
+        },
+        {
+          "held_out_original_block": 3,
+          "development_categories": [
+            "audiojack",
+            "bottle_cap",
+            "button_battery",
+            "end_cap",
+            "eraser",
+            "fire_hood",
+            "mint",
+            "mounts",
+            "pcb",
+            "phone_battery",
+            "plastic_nut",
+            "plastic_plug",
+            "porcelain_doll",
+            "regulator",
+            "rolled_strip_base",
+            "sim_card_set",
+            "switch",
+            "tape"
+          ],
+          "validation_categories": [
+            "terminalblock",
+            "toothbrush",
+            "toy",
+            "toy_brick",
+            "transistor1",
+            "usb"
+          ]
+        }
+      ]
+    }
+  ]
+}
