@@ -176,14 +176,15 @@ def validate_agent_event(event: dict[str, Any]) -> None:
         if revealed or event.get("paid_binary") or event.get("paid_rich_incremental"):
             raise ValueError("No feedback can be revealed without a query")
     elif act == "query_binary":
-        if set(revealed) != {"binary"} or revealed["binary"] not in (0, 1):
+        if set(revealed) != {"binary"} or type(revealed["binary"]) is not int or revealed["binary"] not in (0, 1):
             raise ValueError("Binary query only authorizes {binary:0|1}")
         if event.get("paid_binary") is not True or event.get("paid_rich_incremental"):
             raise ValueError("Binary payment contract violated")
     else:
         if set(revealed) != {"binary", "defect_type", "mask_ref"}:
             raise ValueError("Rich defect query requires binary/type/mask_ref")
-        if (revealed["binary"] != 1 or not isinstance(revealed["defect_type"], str)
+        if (type(revealed["binary"]) is not int or revealed["binary"] != 1
+                or not isinstance(revealed["defect_type"], str)
                 or not revealed["defect_type"]
                 or not isinstance(revealed["mask_ref"], str)
                 or not revealed["mask_ref"]):
