@@ -2,7 +2,19 @@
 
 A sequence of mechanisms for online few-shot anomaly detection: keep the deployed visual backbone frozen, but make its downstream representation factor-addressable so sparse human feedback can update only the relevant parts of Bayesian memory rather than modifying the whole memory indiscriminately.
 
-## Current implementation checkpoint
+## Current Stage-3 research planning (2026-10-23)
+
+The working research direction has advanced to **Scheme B / EG-FAMAR** (Evidence-Governed Factor-Addressed Memory Adaptation and Retrieval). Stage 3 is currently **P0 protocol freeze only**: no G0-G4 mechanism is claimed to be implemented or validated.
+
+- **Execution plan:** [Stage-3 EG-FAMAR P0/G0-G4 and Final protocol](docs/STAGE3_EG_FAMAR_RESEARCH_EXECUTION_PLAN.md)
+- **Current handoff:** [Stage-3 research status and next P0 task](docs/STAGE3_CURRENT_HANDOFF.md)
+- **Branch:** `stage3-eg-famar-execution`, created from `stage2-patch-e3-e4-mechanism-validation` at `3b772a0`.
+- **Major protocol decisions:** preserve legacy four-shot Normal Support selection and guarded Threshold Sidecar as first-class controls; initially allow only Binary and (on queried Defect) Binary + Type + Mask feedback; perform matched-support/query/capacity ablations and prohibit unqueried GT access.
+- **Next task:** P0 canonical I/O and manifest design, followed by a separate approval gate before any G0 coding.
+
+The older Stage-0 instructions below are preserved as historical implementation guidance, not as a statement of current research status.
+
+## Historical Stage-0 implementation checkpoint
 
 Branch: `stage0-foundation-cache`
 
