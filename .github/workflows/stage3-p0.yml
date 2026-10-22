@@ -1,0 +1,36 @@
+name: Stage3 P0 Contract
+on:
+  push:
+    branches:
+      - stage3-eg-famar-execution
+  pull_request:
+    paths:
+      - "configs/stage3/**"
+      - "configs/realiad_folds_v0.json"
+      - "scripts/stage3_p0_validate.py"
+      - "tests/test_stage3_p0_contract.py"
+      - ".github/workflows/stage3-p0.yml"
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Compile P0 linter and tests
+        run: python -m py_compile scripts/stage3_p0_validate.py tests/test_stage3_p0_contract.py
+      - name: Run synthetic contract tests
+        run: python -m unittest discover -s tests -p "test_stage3_p0*.py" -v
+      - name: Check P0 draft structure
+        run: python scripts/stage3_p0_validate.py
+      - name: Verify unresolved G0 prerequisites block strict gate
+        shell: bash
+        run: |
+          if python scripts/stage3_p0_validate.py --strict; then
+            echo "Unexpected: G0 strict gate is already green"
+            exit 1
+          else
+            echo "Expected: draft P0 remains blocked for G0 until real evidence is supplied"
+          fi
