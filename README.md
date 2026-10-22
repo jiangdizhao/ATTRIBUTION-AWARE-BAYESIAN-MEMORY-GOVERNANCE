@@ -8,6 +8,8 @@ The working research direction has advanced to **Scheme B / EG-FAMAR** (Evidence
 
 - **Execution plan:** [Stage-3 EG-FAMAR P0/G0-G4 and Final protocol](docs/STAGE3_EG_FAMAR_RESEARCH_EXECUTION_PLAN.md)
 - **Current handoff:** [Stage-3 research status and next P0 task](docs/STAGE3_CURRENT_HANDOFF.md)
+- **P0 contracts:** [Canonical Memory I/O](docs/STAGE3_CANONICAL_MEMORY_IO_V1.md) · [Binary/Rich authority and cost](docs/STAGE3_FEEDBACK_AUTHORITY_AND_COST_V1.md)
+- **P0 machine-readable artifacts:** `configs/stage3/experiment_manifest_v1.json` and `configs/stage3/source_cv_v1.json`. Read-only check: `python scripts/stage3_p0_validate.py`; tests: `python -m unittest discover -s tests -p "test_stage3_p0*.py" -v`. The `--strict` check intentionally fails until empirical source, support, label-cost and safety evidence is supplied.
 - **Branch:** `stage3-eg-famar-execution`, created from `stage2-patch-e3-e4-mechanism-validation` at `3b772a0`.
 - **Major protocol decisions:** preserve legacy four-shot Normal Support selection and guarded Threshold Sidecar as first-class controls; initially allow only Binary and (on queried Defect) Binary + Type + Mask feedback; perform matched-support/query/capacity ablations and prohibit unqueried GT access.
 - **Next task:** P0 canonical I/O and manifest design, followed by a separate approval gate before any G0 coding.
