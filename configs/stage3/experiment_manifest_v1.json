@@ -1,7 +1,7 @@
 {
   "schema": "eg-famar.experiment_manifest.v1",
   "phase": "P0",
-  "status": "DRAFT_BLOCKED",
+  "status": "P0B_CLI_RECOVERED_G0_SMOKE_NOT_YET_AUTHORIZED",
   "date": "2026-10-23",
   "branch": "stage3-eg-famar-execution",
   "source": {
@@ -16,7 +16,10 @@
     "prior_supplement": "pattern_recognition_supplementary_v_10(1).pdf",
     "primary_proposal": "EG_FAMAR_Research_Plan_English_2026-10-22.pdf",
     "legacy_exact_cli": null,
-    "legacy_result_trace": null
+    "legacy_result_trace": null,
+    "legacy_command_profile_path": "configs/stage3/legacy_v22_recorded_cli_v1.json",
+    "legacy_cli_evidence_status": "COMMAND_RECORDED_NOT_EXECUTION_VERIFIED",
+    "legacy_run_success_verified": false
   },
   "dataset": {
     "name": "Real-IAD",
@@ -27,12 +30,29 @@
     "source_cv": "four other original outer-fold blocks, each held out in turn as 6 source-validation categories; remaining 18 development categories",
     "training_normal_only": true,
     "sealed_targets_evaluator_only": true,
-    "metadata_dir": null,
-    "data_root": null,
+    "metadata_dir": "G:/dataset/realiad/jsons/realiad_jsons",
+    "data_root": "G:/dataset/realiad",
     "dataset_index_sha256": null,
     "physical_mask_verified": false,
     "source_cv_file": "configs/stage3/source_cv_v1.json",
-    "source_cv_frozen": true
+    "source_cv_frozen": true,
+    "inventory_audit": {
+      "schema": "abmg.realiad_inventory.v1",
+      "provenance": "user-provided 2026-10-23 local --verify-files run; summary values not recomputed on GitHub",
+      "product_count": 30,
+      "defect_code_count": 8,
+      "train_normal": 36465,
+      "train_defect": 0,
+      "test_normal": 63256,
+      "test_defect": 51329,
+      "total": 151050,
+      "reported_warnings": 0,
+      "mask_paths_checked_for_existence": 51329,
+      "mask_decodable_nonempty_aligned_verified": false,
+      "inventory_sha256": null,
+      "original_report_local_path": "outputs/stage3_p0/inventory/realiad_inventory.json"
+    },
+    "mask_path_existence_audited": true
   },
   "sensor": {
     "backbone": "dinov2_vitl14_reg",
@@ -44,10 +64,18 @@
     "reported_feature_fusion": "concat",
     "reported_image_aggregation": "max",
     "single_query_view": true,
-    "stage0_cache_not_assumed_equivalent": true
+    "stage0_cache_not_assumed_equivalent": true,
+    "historical_cli": {
+      "feature_fuse": "concat",
+      "layer_fusion": "mean",
+      "view_fusion": "mean",
+      "image_aggregation": "max",
+      "query_rotation_views": "disabled with --no_rotations",
+      "checkpoint_sha256": null
+    }
   },
   "support": {
-    "policy": "deterministic mode-central normal inliers",
+    "policy": "v22 legacy non-mode branch: without support_seed choose sorted normal-train first four; with batch_support_seeds 0,1,2 sample seeded random four per class",
     "number_of_modes_reported": 1,
     "shots_per_mode": 4,
     "augmentation_per_shot_reported": 4,
@@ -60,7 +88,20 @@
       1,
       2
     ],
-    "cold_start_auxiliary_disabled": true
+    "cold_start_auxiliary_disabled": true,
+    "use_modes": false,
+    "K_modes_argument_value_only": 1,
+    "support_select": "legacy",
+    "support_seed_values": [
+      0,
+      1,
+      2
+    ],
+    "stream_seed_values": [
+      0
+    ],
+    "default_legacy_no_seed_uses_first_four": true,
+    "deterministic_mode_central_description_revoked": true
   },
   "memory": {
     "fixed_bank_reported_cap": 25000,
@@ -68,7 +109,22 @@
     "stm_reported_cap": 1024,
     "ltm_reported_cap": 512,
     "correction_reported_cap": 1024,
-    "verify_actual_run_capacities": false
+    "verify_actual_run_capacities": false,
+    "historical_cli": {
+      "K_normal_fixed": 25000,
+      "fixed_per_img_cap": 5000,
+      "K_normal_dyn": 1024,
+      "K_normal_ltm": 512,
+      "K_correction": 1024,
+      "corr_weight": 1,
+      "ltm_min_stm_size": 16,
+      "ltm_min_repeat": 2,
+      "ltm_retrieval_k": 1,
+      "enable_maturation_buffer": true,
+      "enable_maturation_buffer_retrieval": true,
+      "enable_utility_aware_stm_retention": true,
+      "stm_retention_replace_margin": 0.03
+    }
   },
   "threshold": {
     "controller": "guarded_dual_anchor",
@@ -80,7 +136,11 @@
     },
     "legacy_exact_sidecar_parameters": null,
     "mechanism_isolation": "fixed threshold + matched query replay",
-    "closed_loop": "per-branch causal labeled update under same predeclared sidecar rules"
+    "closed_loop": "per-branch causal labeled update under same predeclared sidecar rules",
+    "historical_cli": {
+      "controller": "guarded_dual_anchor",
+      "unmentioned_parameter_resolution": "current repo v22 defaults pending comparison with original historical source/run logs"
+    }
   },
   "feedback": {
     "operator_tiers": [
@@ -118,7 +178,14 @@
     "historical_target_qrate": 0.03,
     "legacy_query_id_trace": null,
     "identical_ids_for_mechanism_isolation": true,
-    "matched_human_minutes_for_g4": true
+    "matched_human_minutes_for_g4": true,
+    "historical_cli": {
+      "policy": "simple_aif",
+      "use_local_saliency": true,
+      "query_cost_dimensionless": 0.8,
+      "beta_entropy": 0.3,
+      "target_qrate": 0.03
+    }
   },
   "evaluation": {
     "prequential": true,
@@ -153,27 +220,34 @@
     }
   },
   "required_before_g0": [
-    "source.legacy_exact_cli",
-    "source.legacy_result_trace",
-    "dataset.metadata_dir",
+    "source.legacy_command_profile_path",
     "dataset.data_root",
+    "dataset.metadata_dir",
     "dataset.dataset_index_sha256",
-    "dataset.physical_mask_verified",
-    "sensor.legacy_exact_profile_unverified",
     "sensor.checkpoint_sha256",
-    "sensor.preprocessing_sha256",
-    "sensor.feature_cache_sha256",
+    "sensor.preprocessing_sha256"
+  ],
+  "caveat": "P0-B recovered the recorded v22 30-class experiment command (command.txt line 191, no runtime results); legacy no --use_modes means no K-means; seeded random 4-shots for batch_support_seeds 0,1,2. Per-product support IDs, checkpoint source/hash, original exact executed script/CLI trace remain unknown. The copied v22 argparse defaults differ from historical command. P0-A file/path audit passed but mask pixels were not decoded/alignment tested. P0-B is NOT a G0 or EG-FAMAR evaluation.",
+  "required_before_g1": [
+    "source.legacy_result_trace",
     "support.support_ids_path",
     "support.support_provenance_sha256",
     "memory.verify_actual_run_capacities",
     "threshold.legacy_exact_sidecar_parameters",
+    "query.legacy_query_id_trace"
+  ],
+  "required_before_g2": [
+    "dataset.physical_mask_verified"
+  ],
+  "required_before_g4": [
     "feedback.binary_seconds",
-    "feedback.rich_incremental_seconds",
-    "query.legacy_query_id_trace",
+    "feedback.rich_incremental_seconds"
+  ],
+  "required_before_final": [
     "evaluation.source_locked_max_unknown_recall_drop",
     "evaluation.source_locked_min_future_normal_gain",
     "evaluation.source_locked_threshold_protocol",
     "evaluation.source_locked_memory_compute_budget"
   ],
-  "caveat": "Draft-only P0. Unresolved null/false/true blockers must not be filled from intuition. Legacy v22 CLI defaults differ from historical paper: fixed 4096 vs paper 25000, correction 256 vs 1024, topk_mean vs max, query 0.06 vs 0.03. Reconcile actual commands and logs before G0; do not assume Stage-0 cache equivalence. Stage-3 source_cv_file materializes all 20 partitions; do not reassign source folds."
+  "gates_explanation": "--strict is G0-SMOKE preflight only. G0 resulting traces/support IDs must NOT gate their own production. Rich mask/annotation minutes belong to G2/G4; source-only safety thresholds required before final comparisons. User stage approval is a separate condition even if strict validator is green."
 }
