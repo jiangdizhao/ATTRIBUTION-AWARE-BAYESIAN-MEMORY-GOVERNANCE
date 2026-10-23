@@ -20,7 +20,7 @@ jobs:
         with:
           python-version: "3.11"
       - name: Compile P0 linter and tests
-        run: python -m py_compile scripts/stage3_p0_validate.py tests/test_stage3_p0_contract.py
+        run: python -m py_compile scripts/stage3_p0_validate.py scripts/stage3_p0b_local_preflight.py tests/test_stage3_p0_contract.py tests/test_stage3_p0b_preflight.py
       - name: Run synthetic contract tests
         run: python -m unittest discover -s tests -p "test_stage3_p0*.py" -v
       - name: Check P0 draft structure
