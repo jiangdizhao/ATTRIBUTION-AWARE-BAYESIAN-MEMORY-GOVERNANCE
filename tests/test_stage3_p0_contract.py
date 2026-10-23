@@ -57,6 +57,44 @@ class Stage3P0Tests(unittest.TestCase):
         self.assertTrue(strict["errors"])
         self.assertFalse(strict["g0_ready"])
 
+    def test_recorded_v22_cli_matches_frozen_fold_universe(self):
+        manifest = p0.load_json(ROOT / "configs" / "stage3" / "experiment_manifest_v1.json")
+        folds = p0.load_json(ROOT / "configs" / "realiad_folds_v0.json")
+        self.assertEqual(p0.validate_legacy_v22_cli(manifest, folds), [])
+        profile = p0.load_json(ROOT / manifest["source"]["legacy_command_profile_path"])
+        args = profile["argv_explicit"]
+        self.assertNotIn("--use_modes", args)
+        self.assertNotIn("--support_select", args)
+        self.assertIn("--batch_support_seeds", args)
+        self.assertIn("0,1,2", args)
+        self.assertEqual(profile["status"], "COMMAND_RECORDED_NOT_EXECUTION_VERIFIED")
+
+    def test_per_stage_gates_do_not_demand_future_results_before_g0(self):
+        manifest = p0.load_json(ROOT / "configs" / "stage3" / "experiment_manifest_v1.json")
+        g0 = set(manifest["required_before_g0"])
+        self.assertNotIn("source.legacy_result_trace", g0)
+        self.assertNotIn("support.support_ids_path", g0)
+        self.assertNotIn("feedback.binary_seconds", g0)
+        self.assertNotIn("feedback.rich_incremental_seconds", g0)
+        self.assertNotIn("dataset.physical_mask_verified", g0)
+        report = p0.check_manifest()
+        self.assertTrue(report["historical_cli_profile_checked"], report["errors"])
+        self.assertTrue(report["structurally_valid"], report["errors"])
+        self.assertFalse(report["g0_ready"])
+        self.assertIn("sensor.checkpoint_sha256", report["pending_by_gate"]["g0"])
+        self.assertIn("dataset.physical_mask_verified", report["pending_by_gate"]["g2"])
+        self.assertIn("feedback.rich_incremental_seconds", report["pending_by_gate"]["g4"])
+
+    def test_command_audit_rejects_wrong_dataset_and_mode_semantics(self):
+        manifest = p0.load_json(ROOT / "configs" / "stage3" / "experiment_manifest_v1.json")
+        folds = p0.load_json(ROOT / "configs" / "realiad_folds_v0.json")
+        bad = copy.deepcopy(manifest)
+        bad["support"]["use_modes"] = True
+        self.assertTrue(p0.validate_legacy_v22_cli(bad, folds))
+        bad = copy.deepcopy(manifest)
+        bad["dataset"]["metadata_dir"] = "wrong-dir"
+        self.assertTrue(p0.validate_legacy_v22_cli(bad, folds))
+
     def test_unqueried_classify_never_reveals_labels(self):
         p0.validate_agent_event(trace())
         with self.assertRaises(ValueError):
