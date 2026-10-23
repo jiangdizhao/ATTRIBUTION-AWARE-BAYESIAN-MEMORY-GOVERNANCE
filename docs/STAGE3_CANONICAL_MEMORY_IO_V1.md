@@ -11,7 +11,7 @@ Reuse rather than rewrite:
 - \`scripts/abmg_realiad_dataset_inventory.py\`: *read-only* metadata, split, defect-type and physical-mask checks.
 - \`configs/realiad_folds_v0.json\`: fixed five outer folds. Source CV is derived without reading any target labels.
 
-**Critical replication caveat:** CLI defaults in the copied v22 do not establish the main-paper run. For example its argparse defaults include \`--K_normal_fixed 4096\`, \`--K_correction 256\`, \`--img_agg topk_mean\`, \`--simple_aif_target_qrate 0.06\`, while reported 30-class paper configuration uses 25,000, 1,024, max, and approximately 0.03. Also Stage-0's mean-fused top-1%-pixel sensor is NOT by default numerically equivalent to the legacy paper's concatenation + max setup. Before G0 restore exact historical commands, checkpoints, logs and per-item traces. No invented overrides.
+**Critical replication caveat:** The archived original v22 command is now available in [P0-B config audit](STAGE3_P0B_LEGACY_V22_CONFIG_AUDIT.md) and `configs/stage3/legacy_v22_recorded_cli_v1.json`. The CLI explicitly uses `--K_normal_fixed 25000`, `--K_correction 1024`, `--img_agg max`, and `--simple_aif_target_qrate 0.03`, while current v22 argparse defaults use 4096, 256, topk_mean and 0.06. It also passes `--K_modes 1` WITHOUT `--use_modes`: the non-mode branch picks sorted first-four supports when unseeded or seeded random four-shot sets with support seeds 0/1/2. Stage-0 mean-fused top-1%-pixel sensor is not automatically numerically equivalent to this old concatenation + max setup. The command is evidence of arguments, NOT executed-result or old-source proof; checkpoint, original logs and item-level trajectories remain unverified.
 
 ## 1. Inference/feedback/commit temporal boundary
 
