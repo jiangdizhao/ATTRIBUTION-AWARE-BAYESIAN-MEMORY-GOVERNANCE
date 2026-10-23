@@ -1,0 +1,214 @@
+{
+  "schema": "eg-famar.legacy_v22_recorded_cli.v1",
+  "status": "COMMAND_RECORDED_NOT_EXECUTION_VERIFIED",
+  "origin": {
+    "user_uploaded_filename": "command.txt",
+    "original_line_1_based": 191,
+    "script_as_written": ".\\test_phase3_AIF_simplified_v22.py",
+    "replay_script_repository_path": "scripts/test_phase3_AIF_simplified_v22.py",
+    "script_git_blob_sha": "6c975d48e6e6a213447d2893aeae0816ba550166",
+    "note": "Flags transcribed from line 191; the original ran from a different working directory and redirected output elsewhere. Argument list strips shell quoting, not values. Record does NOT attest run success, weights or exact code revision."
+  },
+  "argv_explicit": [
+    "--dataset",
+    "realiad",
+    "--root",
+    "G:/dataset/realiad",
+    "--csv",
+    "G:/dataset/realiad/jsons/realiad_jsons",
+    "--ablation",
+    "normal_dyn_plus_correction",
+    "--policy",
+    "simple_aif",
+    "--simple_aif_use_local_saliency",
+    "--simple_aif_query_cost",
+    "0.8",
+    "--simple_aif_beta_entropy",
+    "0.3",
+    "--simple_aif_target_qrate",
+    "0.03",
+    "--theta_controller",
+    "guarded_dual_anchor",
+    "--baseline_compat",
+    "--feature_fuse",
+    "concat",
+    "--K_modes",
+    "1",
+    "--shots_per_mode",
+    "4",
+    "--aug_per_image",
+    "4",
+    "--img_agg",
+    "max",
+    "--layer_fusion",
+    "mean",
+    "--view_fusion",
+    "mean",
+    "--no_rotations",
+    "--no_set_membership",
+    "--K_normal_fixed",
+    "25000",
+    "--fixed_per_img_cap",
+    "5000",
+    "--K_normal_dyn",
+    "1024",
+    "--K_normal_ltm",
+    "512",
+    "--ltm_min_stm_size",
+    "16",
+    "--ltm_min_repeat",
+    "2",
+    "--K_correction",
+    "1024",
+    "--corr_weight",
+    "1.0",
+    "--enable_maturation_buffer",
+    "--ltm_retrieval_k",
+    "1",
+    "--enable_maturation_buffer_retrieval",
+    "--enable_utility_aware_stm_retention",
+    "--stm_retention_replace_margin",
+    "0.03",
+    "--save_temporal_artifacts",
+    "--debug_defect_writes",
+    "--experiment_mode",
+    "batch",
+    "--batch_out_dir",
+    "E:/idefics2-8b-chatty/previous_logs/experiment/v22/P1_exact_support_draws_stream0",
+    "--batch_support_seeds",
+    "0,1,2",
+    "--batch_stream_seeds",
+    "0",
+    "--batch_run_tag",
+    "P1_exact_v21_equiv_support_s3_stream0",
+    "--batch_classes",
+    "audiojack,bottle_cap,button_battery,end_cap,eraser,fire_hood,mint,mounts,pcb,phone_battery,plastic_nut,plastic_plug,porcelain_doll,regulator,rolled_strip_base,sim_card_set,switch,tape,terminalblock,toothbrush,toy,toy_brick,transistor1,u_block,usb,usb_adaptor,vcpill,wooden_beads,woodstick,zipper"
+  ],
+  "semantic_audit": {
+    "mainline": "full legacy AIF with normal STM/LTM, maturation, signed correction and guarded dual-anchor sidecar",
+    "source_line_191_batch_expected_if_all_successful": {
+      "n_classes": 30,
+      "support_seeds": [
+        0,
+        1,
+        2
+      ],
+      "stream_seeds": [
+        0
+      ],
+      "distinct_class_support_stream_combinations": 90,
+      "query_policy": "simple_aif"
+    },
+    "support": {
+      "use_modes": false,
+      "k_modes_argument_only": 1,
+      "select_strategy": "legacy (argparse default: --support_select not specified)",
+      "shots": 4,
+      "aug_per_image": 4,
+      "selection_with_support_seed": "seeded random sample from normal-train pool after sorted input list",
+      "selection_without_support_seed": "legacy deterministic first four normal-train images when --use_modes absent",
+      "prior_candidate_pool": "all eligible normal-train samples, not a strict total-four predeployment condition"
+    },
+    "sensor": {
+      "feature_fuse": "concat",
+      "layer_fusion": "mean",
+      "view_fusion": "mean",
+      "image_aggregation": "max",
+      "query_rotation_pseudoviews": false,
+      "pretrained_weights_sha256": null,
+      "stage0_sensor_parity_claimed": false
+    },
+    "memory": {
+      "fixed_capacity": 25000,
+      "fixed_per_image_cap": 5000,
+      "stm_capacity": 1024,
+      "ltm_capacity": 512,
+      "correction_capacity": 1024,
+      "correction_weight": 1,
+      "ltm_min_stm_size": 16,
+      "ltm_min_repeat": 2,
+      "ltm_retrieval_k": 1,
+      "maturation_buffer": true,
+      "maturation_buffer_retrieval": true,
+      "utility_aware_stm_retention": true,
+      "stm_retention_replace_margin": 0.03
+    },
+    "query": {
+      "policy": "simple_aif",
+      "local_saliency": true,
+      "query_cost_dimensionless": 0.8,
+      "entropy_weight": 0.3,
+      "target_query_fraction": 0.03
+    },
+    "threshold": {
+      "controller_explicit": "guarded_dual_anchor",
+      "all_unmentioned_parameters": "current v22 parser defaults; historical code identity and logs not yet corroborated"
+    },
+    "policy_exclusions": {
+      "use_modes": false,
+      "coverage_tail": false,
+      "v22_support_guard": false,
+      "v22_warmup_budget": false,
+      "v22_fast_rescue": false,
+      "v22_balanced_rescue": false
+    }
+  },
+  "alternatives_from_same_file": [
+    {
+      "line": 184,
+      "label": "four-category v21 equivalent",
+      "support_seeds": [
+        0,
+        1,
+        2
+      ],
+      "class_count": 4
+    },
+    {
+      "line": 188,
+      "label": "support guard + warmup (confounded; uses $classes30 shell variable)",
+      "has_support_guard": true,
+      "has_warmup_budget": true
+    },
+    {
+      "line": 195,
+      "label": "coverage_tail q0.75 + support guard + warmup (not isolated)",
+      "support_select": "coverage_tail"
+    },
+    {
+      "line": 200,
+      "label": "stream order stress",
+      "stream_seeds": [
+        0,
+        1,
+        2
+      ]
+    },
+    {
+      "line": 204,
+      "label": "AIF query rate 0.10; run tag misleading q001",
+      "target_query_fraction": 0.1
+    },
+    {
+      "line": 207,
+      "label": "hardcode band 0.3–0.7",
+      "query_policy": "hardcode_band"
+    },
+    {
+      "line": 220,
+      "label": "deployment cost and hidden FN audits"
+    },
+    {
+      "line": 223,
+      "label": "self-training baseline separate from B-only feedback"
+    }
+  ],
+  "pending": [
+    "Historical command execution logs/result SHA",
+    "DINO checkpoint identity",
+    "actual selected support paths per class×seed",
+    "support-derived theta0 and numeric parity",
+    "legacy parser default values for all omitted arguments at exact historical code revision"
+  ],
+  "disclaimer": "This is the recovered PRIMARY REFERENCE COMMAND, not the source of confirmed original 30-class performance. Old shell redirection to tee and old output path intentionally not part of argv; use a new Stage-3 output folder for future G0."
+}
