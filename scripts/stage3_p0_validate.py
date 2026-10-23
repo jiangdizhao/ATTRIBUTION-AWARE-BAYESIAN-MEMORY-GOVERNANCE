@@ -85,6 +85,106 @@ def validate_folds(folds: dict[str, Any], outer_count: int = 5,
     return partitions
 
 
+
+def validate_legacy_v22_cli(manifest: dict[str, Any], folds: dict[str, Any]) -> list[str]:
+    """Audit the recorded user command without importing heavyweight v22.
+
+    Historical command provenance is NOT equivalent to verifying executed runs.
+    Only compares the explicit recorded v22 command to our current P0-B manifest.
+    """
+    problems = []
+    src = manifest.get("source", {})
+    path = src.get("legacy_command_profile_path")
+    if not isinstance(path, str) or not path:
+        return ["Missing legacy command profile path"]
+    try:
+        profile = load_json(REPO / path)
+    except (OSError, ValueError) as exc:
+        return [f"Cannot read legacy command profile: {exc}"]
+    if profile.get("schema") != "eg-famar.legacy_v22_recorded_cli.v1":
+        problems.append("Legacy CLI schema mismatch")
+    if profile.get("status") != "COMMAND_RECORDED_NOT_EXECUTION_VERIFIED":
+        problems.append("CLI provenance may not claim runtime verification")
+    origin = profile.get("origin", {})
+    if origin.get("original_line_1_based") != 191 or origin.get("user_uploaded_filename") != "command.txt":
+        problems.append("Legacy CLI source line/provenance mismatch")
+    if origin.get("replay_script_repository_path") != src.get("v22_path"):
+        problems.append("Legacy CLI script path differs from manifest")
+    args = profile.get("argv_explicit", [])
+    if not isinstance(args, list) or not all(isinstance(a, str) for a in args):
+        return problems + ["Historical argv must be a string list"]
+    options: dict[str, str | bool] = {}
+    i = 0
+    while i < len(args):
+        token = args[i]
+        if not token.startswith("--") or token in options:
+            return problems + [f"Invalid/duplicate argv option at position {i}: {token}"]
+        if i+1 < len(args) and not args[i+1].startswith("--"):
+            options[token] = args[i+1]
+            i += 2
+        else:
+            options[token] = True
+            i += 1
+    expected_flags = {
+        "--baseline_compat", "--simple_aif_use_local_saliency",
+        "--no_rotations", "--no_set_membership",
+        "--enable_maturation_buffer", "--enable_maturation_buffer_retrieval",
+        "--enable_utility_aware_stm_retention", "--save_temporal_artifacts",
+        "--debug_defect_writes",
+    }
+    if any(options.get(flag) is not True for flag in expected_flags):
+        problems.append("Missing one or more legacy mainline required boolean flags")
+    if "--use_modes" in options or "--support_select" in options:
+        problems.append("Mainline command must use the non-mode default legacy support selector")
+    value_cases = {
+        "--dataset": "realiad",
+        "--root": manifest.get("dataset", {}).get("data_root"),
+        "--csv": manifest.get("dataset", {}).get("metadata_dir"),
+        "--policy": "simple_aif",
+        "--ablation": "normal_dyn_plus_correction",
+        "--feature_fuse": "concat",
+        "--layer_fusion": "mean",
+        "--view_fusion": "mean",
+        "--img_agg": "max",
+        "--theta_controller": "guarded_dual_anchor",
+        "--K_modes": "1",
+        "--shots_per_mode": "4",
+        "--aug_per_image": "4",
+        "--K_normal_fixed": "25000",
+        "--fixed_per_img_cap": "5000",
+        "--K_normal_dyn": "1024",
+        "--K_normal_ltm": "512",
+        "--K_correction": "1024",
+        "--simple_aif_target_qrate": "0.03",
+        "--batch_support_seeds": "0,1,2",
+        "--batch_stream_seeds": "0",
+        "--experiment_mode": "batch",
+    }
+    for key, expected in value_cases.items():
+        if options.get(key) != expected:
+            problems.append(f"Recorded legacy CLI mismatch: {key}")
+    if profile.get("semantic_audit", {}).get("support", {}).get("use_modes") is not False:
+        problems.append("CLI support semantic audit must explicitly disable modes")
+    if manifest.get("support", {}).get("use_modes") is not False:
+        problems.append("Manifest support semantic audit must explicitly disable modes")
+    if manifest.get("support", {}).get("support_seed_values") != [0, 1, 2]:
+        problems.append("Manifest support draws must be 0,1,2")
+    if manifest.get("dataset", {}).get("inventory_audit", {}).get("reported_warnings") != 0:
+        problems.append("Uploaded Real-IAD inventory contains warnings")
+    product_tokens = str(options.get("--batch_classes", "")).split(",")
+    if len(product_tokens) != len(set(product_tokens)) or set(product_tokens) != set(folds.get("all_categories", [])):
+        problems.append("Recorded 30-class batch differs from frozen outer-fold universe")
+    return problems
+
+
+def unresolved_at_gate(manifest: dict[str, Any], gate: str) -> list[str]:
+    """Per-stage blockers; never demand G0 outcomes or Rich time before G0 smoke."""
+    return [name for name in manifest.get(f"required_before_{gate}", [])
+            if field(manifest, name) is None or field(manifest, name) is False
+            or (field(manifest, name) is True and name.endswith("unverified"))
+            or field(manifest, name) == ""]
+
+
 def unresolved_fields(manifest: dict[str, Any]) -> list[str]:
     pending = []
     for name in manifest.get("required_before_g0", []):
@@ -129,6 +229,8 @@ def check_manifest(path: Path = DEFAULT_MANIFEST, *, strict: bool = False) -> di
                     raise ValueError("Frozen Source CV partition mismatch")
     except (KeyError, ValueError, OSError) as exc:
         problems.append(f"Frozen source-CV contract: {exc}")
+    if partitions:
+        problems.extend(validate_legacy_v22_cli(m, folded))
     for path_key in ("v22_path", "visionad_path", "inventory_path"):
         src = m.get("source", {}).get(path_key)
         if not isinstance(src, str) or not (REPO / src).is_file():
@@ -150,15 +252,23 @@ def check_manifest(path: Path = DEFAULT_MANIFEST, *, strict: bool = False) -> di
         problems.append("Prequential scoring contract missing")
     if m.get("query", {}).get("identical_ids_for_mechanism_isolation") is not True:
         problems.append("Matched-replay query IDs must be fixed")
-    pending = unresolved_fields(m)
+    pending = unresolved_at_gate(m, "g0")
+    pending_by_gate = {
+        gate: unresolved_at_gate(m, gate)
+        for gate in ("g0", "g1", "g2", "g4", "final")
+    }
+    structurally_valid = not problems
     if strict and (pending or m.get("status") != "READY_FOR_G0_REVIEW"):
-        problems.append("G0 readiness is BLOCKED: unresolved P0 evidence or status")
+        problems.append("G0-SMOKE readiness is BLOCKED: missing local P0-B fingerprints or explicit stage approval")
     return {"schema": "eg-famar.p0.validation.v1",
-            "structurally_valid": not problems if not strict else not problems,
-            "g0_ready": not problems and not pending and m.get("status") == "READY_FOR_G0_REVIEW",
+            "structurally_valid": structurally_valid,
+            "g0_ready": structurally_valid and not pending and m.get("status") == "READY_FOR_G0_REVIEW",
             "outer_folds_validated": len(partitions),
             "source_cv_partitions_validated": sum(len(p["source_cv"]) for p in partitions),
-            "pending_evidence": pending, "errors": problems}
+            "historical_cli_profile_checked": bool(partitions) and not validate_legacy_v22_cli(m, folded),
+            "pending_evidence": pending,
+            "pending_by_gate": pending_by_gate,
+            "errors": problems}
 
 
 def validate_agent_event(event: dict[str, Any]) -> None:
