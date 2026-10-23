@@ -9,10 +9,11 @@ The working research direction has advanced to **Scheme B / EG-FAMAR** (Evidence
 - **Execution plan:** [Stage-3 EG-FAMAR P0/G0-G4 and Final protocol](docs/STAGE3_EG_FAMAR_RESEARCH_EXECUTION_PLAN.md)
 - **Current handoff:** [Stage-3 research status and next P0 task](docs/STAGE3_CURRENT_HANDOFF.md)
 - **P0 contracts:** [Canonical Memory I/O](docs/STAGE3_CANONICAL_MEMORY_IO_V1.md) · [Binary/Rich authority and cost](docs/STAGE3_FEEDBACK_AUTHORITY_AND_COST_V1.md)
-- **P0 machine-readable artifacts:** `configs/stage3/experiment_manifest_v1.json` and `configs/stage3/source_cv_v1.json`. Read-only check: `python scripts/stage3_p0_validate.py`; tests: `python -m unittest discover -s tests -p "test_stage3_p0*.py" -v`. The `--strict` check intentionally fails until empirical source, support, label-cost and safety evidence is supplied.
+- **P0 machine-readable artifacts:** `configs/stage3/experiment_manifest_v1.json`, `configs/stage3/source_cv_v1.json`, and the [recovered legacy v22 CLI](configs/stage3/legacy_v22_recorded_cli_v1.json). Read-only check: `python scripts/stage3_p0_validate.py`; tests: `python -m unittest discover -s tests -p "test_stage3_p0*.py" -v`. The `--strict` check is the G0-SMOKE prerequisite check and intentionally fails until local index/model identity + review are supplied; G1/G2/G4 prerequisites are separate.
 - **Branch:** `stage3-eg-famar-execution`, created from `stage2-patch-e3-e4-mechanism-validation` at `3b772a0`.
 - **Major protocol decisions:** preserve legacy four-shot Normal Support selection and guarded Threshold Sidecar as first-class controls; initially allow only Binary and (on queried Defect) Binary + Type + Mask feedback; perform matched-support/query/capacity ablations and prohibit unqueried GT access.
-- **Next task:** P0 canonical I/O and manifest design, followed by a separate approval gate before any G0 coding.
+- **P0-B record:** [legacy experiment configuration audit](docs/STAGE3_P0B_LEGACY_V22_CONFIG_AUDIT.md). Uploaded command.txt line 191 records the full v22 30-class AIF stack. Historical support uses NO `--use_modes` (non-mode first-four or seeded random four-shot), not mode-central inliers. P0-A user-local inventory checked 30 classes/8 defect codes with no filename/path warnings; mask content not validated.
+- **Next task:** locally run read-only `scripts/stage3_p0b_local_preflight.py` to hash 30 JSON metadata files and verify source identity, then inspect DINO checkpoint/preprocessing before any separate G0 smoke approval.
 
 The older Stage-0 instructions below are preserved as historical implementation guidance, not as a statement of current research status.
 
