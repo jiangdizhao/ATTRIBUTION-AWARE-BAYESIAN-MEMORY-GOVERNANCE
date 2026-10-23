@@ -6,7 +6,7 @@
 ## 0. Existing code is authoritative for behavior, not script defaults
 
 Reuse rather than rewrite:
-- \`scripts/test_phase3_AIF_simplified_v22.py\`: frozen scorer integration; support mode selection \`build_modes_from_train_good\`, \`select_clean_support_paths_per_mode\`; \`PatchVMB\`; \`FixedCapacityCodebook\`; \`MaturationBuffer\`; \`SignedCorrectionCodebook\`; \`GuardedDualAnchorThresholdController\`; \`SimpleAIF\`; conservative \`is_label_suspicious\` / \`should_write_normal_from_feedback\`.
+- \`scripts/test_phase3_AIF_simplified_v22.py\`: frozen scorer integration; *conditional* support mode functions \`build_modes_from_train_good\` / \`select_clean_support_paths_per_mode\` (only when \`--use_modes\`); non-mode path \`_sample_paths_deterministic_or_seeded\`; \`PatchVMB\`; \`FixedCapacityCodebook\`; \`MaturationBuffer\`; \`SignedCorrectionCodebook\`; \`GuardedDualAnchorThresholdController\`; \`SimpleAIF\`; conservative \`is_label_suspicious\` / \`should_write_normal_from_feedback\`.
 - \`scripts/vmb_visionad_new.py\`: pretrained DINOv2 multi-layer backbone and patch nearest-normal scorer.
 - \`scripts/abmg_realiad_dataset_inventory.py\`: *read-only* metadata, split, defect-type and physical-mask checks.
 - \`configs/realiad_folds_v0.json\`: fixed five outer folds. Source CV is derived without reading any target labels.
