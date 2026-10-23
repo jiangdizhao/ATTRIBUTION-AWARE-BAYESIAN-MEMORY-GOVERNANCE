@@ -3,7 +3,7 @@
 **Updated:** 2026-10-23  
 **Branch:** `stage3-eg-famar-execution`  
 **Base Stage-2 HEAD:** `3b772a0737cce8d1f11897db7064441a476e9cf1`  
-**Stage-3 status:** Planning/recording only. No G0/G1/G2/G3/G4 implementation or validation is claimed.
+**Stage-3 status:** P0-A inventory audit completed locally, P0-B historical command recovered; G0/G1/G2/G3/G4 have NOT been run or validated.
 
 **Canonical Stage-3 execution authority:** [STAGE3_EG_FAMAR_RESEARCH_EXECUTION_PLAN.md](STAGE3_EG_FAMAR_RESEARCH_EXECUTION_PLAN.md). The 2026-10-22 EG-FAMAR PDF is the latest scientific proposal; if older 2026-10-16/20 handoffs conflict, use 10-22 staging/numbering and document any adjustment explicitly.
 
@@ -32,7 +32,7 @@ Frozen DINOv2 + primary open-set Normal NN + governed bounded mutable memory and
 - `tests/test_stage3_p0_contract.py` — synthetic validation tests. `.github/workflows/stage3-p0.yml` is a narrow CI check (when GitHub Actions is enabled).
 - Existing v22/visionad/inventory/Stage-2 experiment code remains unchanged. Do NOT substitute the uploaded local copy of v22 for the exact Git blob until its differences are audited.
 
-The historical main-paper experimental configuration is not the argparse default of v22: examples include Fixed bank 25,000 vs default 4,096, Correction 1,024 vs 256, Max image aggregation vs topk_mean default, and approx 3% query rate vs 6% script default. The original CLI/run log is required to establish which flags produced the reported results.
+The historical v22 primary CLI has now been recovered from uploaded command.txt **line 191**, archived as `configs/stage3/legacy_v22_recorded_cli_v1.json`; see [P0-B audit](STAGE3_P0B_LEGACY_V22_CONFIG_AUDIT.md). The historical CLI's Fixed 25,000, Correction 1,024, Max image aggregation and 3% query target differ from the current v22 defaults 4,096 / 256 / topk_mean / 6%. The recovered command is **not proof that a prior run succeeded** or that current code shares the old historical source SHA.
 
 Run after local sync:
 ```powershell
@@ -40,9 +40,18 @@ python -m unittest discover -s tests -p "test_stage3_p0*.py" -v
 python scripts/stage3_p0_validate.py
 python scripts/stage3_p0_validate.py --strict
 ```
-The first two should pass; `--strict` is designed to **fail** while unresolved real-data/source artifacts remain. A structural pass does not mean G0 ready.
+The first two should pass; `--strict` is designed to **fail** until local JSON index and model/preprocessing fingerprints are reconciled and the G0-smoke gate is explicitly reviewed. The validator now separates future G1/G2/G4/final evidence from G0-smoke blockers. A structural pass does not mean G0 ready.
 
-**Still missing before P0 approval:** full historical v22 run CLI and item-level result trace, DINO and preprocessing hashes, support image IDs and support-candidate provenance, source dataset/index hashes and physical Mask validation, actual Sidecar parameters/capacities, chosen fixed replay query IDs, measured or preregistered B/R seconds, and source-only safety/compute thresholds. These are evidence and decisions, not safe to guess.
+**Remaining evidence by stage:** Before G0 smoke, local JSON-index checksum and actually loaded frozen DINO/preprocessing identity. G0 will generate support-image IDs, theta0, item-level scores/query traces and actual memory/Sidecar capacities; these do not circularly block G0. Rich Mask pixel validation belongs before G2; B/R annotation time before G4; source-frozen safety/cost bounds before final comparison. Historical run-result corroboration is still outstanding.
+
+## P0-B checkpoint (2026-10-23) — documentation+preflight, NOT a model run
+
+- P0-A local user inventory: 30 products, 8 defect codes, 36,465 train Normal, 63,256 test Normal, 51,329 test Defect; zero file/path warnings, declared mask paths exist. No mask pixel validation or full image hash.
+- `configs/stage3/legacy_v22_recorded_cli_v1.json`: complete primary v22 30-class command flag list from command.txt line 191, source attribution preserved.
+- `docs/STAGE3_P0B_LEGACY_V22_CONFIG_AUDIT.md`: command alternatives, source-vs-default distinctions and correct non-mode support selection.
+- `scripts/stage3_p0b_local_preflight.py`: local-only JSON-index digest + source Git blob audit, optional explicit model weight SHA256. Output lives under ignored `outputs/`.
+- `scripts/stage3_p0_validate.py`: legacy CLI/fold consistency check and separate `pending_by_gate` (g0/g1/g2/g4/final). Tests/CI extended.
+- **Next user action:** pull branch and run `python scripts/stage3_p0b_local_preflight.py --root "G:/dataset/realiad" --json-dir "G:/dataset/realiad/jsons/realiad_jsons" --inventory "outputs/stage3_p0/inventory/realiad_inventory.json" --out "outputs/stage3_p0/p0b_local_provenance.json"` (one line), then share summary. Do not run a G0 baseline yet.
 
 ## Current task: P0 protocol freeze ONLY
 
