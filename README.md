@@ -1,61 +1,40 @@
 # ATTRIBUTION-AWARE-BAYESIAN-MEMORY-GOVERNANCE
 
-A sequence of mechanisms for online few-shot anomaly detection: keep the deployed visual backbone frozen, but make its downstream representation factor-addressable so sparse human feedback can update only the relevant parts of Bayesian memory rather than modifying the whole memory indiscriminately.
+Research on sparse human feedback and persistent learning with a frozen visual backbone: determine which external attribute/correction states verified evidence should change, where the correction should apply, and how to improve future decisions without indiscriminate interference.
 
-## Current Stage-3 research planning (2026-10-23)
+## Current research plan — v1.1, 2026-11-13
 
-The working research direction has advanced to **Scheme B / EG-FAMAR** (Evidence-Governed Factor-Addressed Memory Adaptation and Retrieval). Stage 3 is currently **P0 protocol freeze only**: no G0-G4 mechanism is claimed to be implemented or validated.
+**A_CONTINUE_FEASIBILITY:** A (persistent cross-product learning from human attribute feedback) remains the priority. Continue its existing feasibility work until the evidence supports a defensible judgment. Adding ABMG, discussing limitations, one failed implementation or an insufficiently informed calendar checkpoint does not automatically terminate A.
 
-- **Execution plan:** [Stage-3 EG-FAMAR P0/G0-G4 and Final protocol](docs/STAGE3_EG_FAMAR_RESEARCH_EXECUTION_PLAN.md)
-- **Current handoff:** [Stage-3 research status and next P0 task](docs/STAGE3_CURRENT_HANDOFF.md)
-- **P0 contracts:** [Canonical Memory I/O](docs/STAGE3_CANONICAL_MEMORY_IO_V1.md) · [Binary/Rich authority and cost](docs/STAGE3_FEEDBACK_AUTHORITY_AND_COST_V1.md)
-- **P0 machine-readable artifacts:** `configs/stage3/experiment_manifest_v1.json`, `configs/stage3/source_cv_v1.json`, and the [recovered legacy v22 CLI](configs/stage3/legacy_v22_recorded_cli_v1.json). Read-only check: `python scripts/stage3_p0_validate.py`; tests: `python -m unittest discover -s tests -p "test_stage3_p0*.py" -v`. The `--strict` check is the G0-SMOKE prerequisite check and intentionally fails until local index/model identity + review are supplied; G1/G2/G4 prerequisites are separate.
-- **Branch:** `stage3-eg-famar-execution`, created from `stage2-patch-e3-e4-mechanism-validation` at `3b772a0`.
-- **Major protocol decisions:** preserve legacy four-shot Normal Support selection and guarded Threshold Sidecar as first-class controls; initially allow only Binary and (on queried Defect) Binary + Type + Mask feedback; perform matched-support/query/capacity ablations and prohibit unqueried GT access.
-- **P0-B record:** [legacy experiment configuration audit](docs/STAGE3_P0B_LEGACY_V22_CONFIG_AUDIT.md). Uploaded command.txt line 191 records the full v22 30-class AIF stack. Historical support uses NO `--use_modes` (non-mode first-four or seeded random four-shot), not mode-central inliers. P0-A user-local inventory checked 30 classes/8 defect codes with no filename/path warnings; mask content not validated.
-- **Next task:** locally run read-only `scripts/stage3_p0b_local_preflight.py` to hash 30 JSON metadata files and verify source identity, then inspect DINO checkpoint/preprocessing before any separate G0 smoke approval.
+**ABMG_ALTERNATIVE_PLANNED:** Attribution-Aware Bayesian Memory Governance is retained as a concrete conditional alternative, not an automatically launched second project. The revised plan separates the benefit of region/attribute/context-addressed correction from any additional benefit of Bayesian uncertainty.
 
-The older Stage-0 instructions below are preserved as historical implementation guidance, not as a statement of current research status.
+**D6_HEADROOM_PROTOCOL_PREPARATION / EXPERIMENT_HOLD:** current work is planning. No model run, new annotation, new data/cache access, sealed-set opening or configuration change is authorized by this documentation update. C (feedback value) is conditional; B (dynamic Schema/rule revision) is deferred. Historical Scheme B / EG-FAMAR is a different name from current route B.
 
-## Historical Stage-0 implementation checkpoint
+### Current documents
 
-Branch: `stage0-foundation-cache`
+- [Full four-month execution plan v1.1](docs/Last_Paper_Four_Month_Research_Execution_Plan_2026-11_to_2027-02_v1_1.md): A1/A2/A3 improvements, six ABMG chapters, rich feedback, multi-anomaly/context boundaries, matched-reliability query reduction, baselines, statistics, resources and revised checkpoints.
+- [Current research handoff](docs/STAGE3_CURRENT_HANDOFF.md): latest reported pilot state, permissions and the next LP-D6-P0 preparation task.
+- [Stage-3 plan entry](docs/STAGE3_EG_FAMAR_RESEARCH_EXECUTION_PLAN.md): current authority and historical-plan links.
+- [v1.1 release record](docs/PLAN_RELEASE_v1_1_2026-11-13.md): exact Markdown and delivered DOCX checksums, artifact roles and revision scope.
 
-The first implementation milestone contains:
+The complete editable Markdown is maintained here. A 36-page DOCX rendered from the same source is delivered separately for upload to the ChatGPT Project folder; this commit does not claim that a binary DOCX has been uploaded to GitHub. The original project v1.0 DOCX remains a historical source.
 
-- **Stage 0A** — a thin VisionAD-aligned, single-view Real-IAD baseline for numerical continuity;
-- **Stage 0B** — a restartable frozen DINOv2 patch-feature cache for later `R0 / R1 / R_beta` experiments;
-- frozen five-fold Real-IAD category assignment;
-- a strict separation between deployable feature/cache metadata and offline-only labels, defect-source labels, and masks.
+### What the revision preserves
 
-The two predecessor scripts in `scripts/` remain reference code and are not modified by Stage 0.
+Frozen backbone; explicit feedback authority and cost; predict → query → reveal → update; independent future-object evaluation; strong information/resource-matched baselines; retained negative findings; no automatic scientific claims from engineering success. Attribute, defect type, spatial mask and physical cause remain distinct. Unannotated/unknown is not absent. An accepted abrasion attribute cannot suppress a coexisting contaminant or unexplained anomaly.
 
-## Stage-0 entry point
+Fewer questions must be measured at comparable verified reliability. A query-rate target is not a spending ceiling, and budget exhaustion is not evidence of learning. Small credible benefits can matter, but the primary endpoint/contribution path must be specified before candidate results are inspected.
 
-```bash
-python scripts/abmg_stage0_foundation.py --help
-```
+### Repository and historical records
 
-Recommended local validation order:
+Working branch: `stage3-eg-famar-execution`. This revision changes documentation only, not `main`, experiment code, data, folds, runtime manifests or results.
 
-```bash
-python -m py_compile scripts/abmg_stage0_foundation.py
-python -m unittest discover -s tests -p 'test_stage0*.py' -v
+The previous README and Stage-3 documents are preserved unchanged:
 
-python scripts/abmg_stage0_foundation.py inspect \
-  --root /PATH/TO/Real-IAD \
-  --json-dir /PATH/TO/realiad_jsons_sv
-```
+- [README snapshot, 2026-10-23](docs/archive/README_2026-10-23.md)
+- [Historical Stage-3 plan](docs/archive/STAGE3_EG_FAMAR_RESEARCH_EXECUTION_PLAN_2026-10-23.md)
+- [Historical Stage-3 handoff](docs/archive/STAGE3_CURRENT_HANDOFF_2026-10-23.md)
 
-Then run a small Stage-0A continuity smoke test and Stage-0B cache smoke test before launching the full Real-IAD job.
+Existing [memory I/O](docs/STAGE3_CANONICAL_MEMORY_IO_V1.md), [feedback authority/cost](docs/STAGE3_FEEDBACK_AUTHORITY_AND_COST_V1.md), [legacy configuration audit](docs/STAGE3_P0B_LEGACY_V22_CONFIG_AUDIT.md) and `configs/stage3/` remain historical/versioned contracts. Do not silently apply the revised feedback design to old experiments or interpret archived next-action commands as current authorization.
 
-See [`doc/STAGE0_FOUNDATION_AND_CACHE.md`](doc/STAGE0_FOUNDATION_AND_CACHE.md) for exact commands, artifact structure, the paper-aligned sensor configuration, and the data-access boundary.
-
-## Source documents
-
-- `doc/attribution_aware_bayesian_memory_governance_step_by_step_guide.pdf`
-- `doc/Search is All You Need for Few-shot Anomaly Detection.pdf`
-
-## Research-stage discipline
-
-The Stage-0 implementation intentionally does **not** add beta-VAE training, NIG memory, factor responsibility, source-centroid memory, factor correction, or a new query controller. Those mechanisms are introduced only after the frozen sensor/cache boundary is validated locally.
+Stage-0 implementation guidance remains available in [the original foundation/cache document](doc/STAGE0_FOUNDATION_AND_CACHE.md) and the archived README. Existing code remains available for explicitly approved work; this README is not a request to run it.
