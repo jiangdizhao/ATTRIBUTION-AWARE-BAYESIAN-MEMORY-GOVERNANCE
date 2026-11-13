@@ -1,0 +1,295 @@
+{
+  "schema": "lastpaper.d6_p0_readiness_manifest.v1",
+  "generated_date": "2026-11-13",
+  "study": "Sparse Human Feedback for Persistent Cross-Product Attribute Learning",
+  "plan_version": "Last Paper Four-Month Research Execution Plan v1.1",
+  "p0_status": "DOCUMENTATION_READY",
+  "scientific_data_readiness": "INCONCLUSIVE",
+  "next_phase_readiness": {
+    "can_request_d6_p1_go": false,
+    "d6_p1": "NOT_AUTHORIZED",
+    "d6_p2": "NOT_AUTHORIZED",
+    "d6_p3": "NOT_AUTHORIZED",
+    "reason_codes": [
+      "NO_FEATURE_CACHE_FOR_ANNOTATED_IMAGES",
+      "CURRENT_PYTHON_HAS_NO_TORCH",
+      "ONLY_24_REAL_IAD_SAMPLE_KEY_GROUPS",
+      "PHYSICAL_OBJECT_INDEPENDENCE_INFERRED",
+      "ALL_CURRENT_PILOT_LABELS_RESEARCHER_VISIBLE",
+      "NO_AUTHORIZED_D_CONF",
+      "REAL_FEEDBACK_TIME_UNRELIABLE"
+    ]
+  },
+  "research_decisions": {
+    "A_CONTINUE_FEASIBILITY": true,
+    "ABMG_ALTERNATIVE_PLANNED": true,
+    "A1": "HOLD",
+    "A2": "SCREEN",
+    "A3": "BASELINE_AND_ORGANIZATION_PRINCIPLE",
+    "D6_HEADROOM_PROTOCOL_PREPARATION": true,
+    "algorithm_result_claimed": false
+  },
+  "repository": {
+    "local_branch": "stage3-eg-famar-execution",
+    "local_head": "4f265d89a9a29b871d0f1ff5c0f66b35a5ad3c37",
+    "remote_branch": "origin/stage3-eg-famar-execution",
+    "remote_head_observed_date": "2026-11-13",
+    "remote_head": "4f265d89a9a29b871d0f1ff5c0f66b35a5ad3c37",
+    "ahead": 0,
+    "behind": 0,
+    "tracked_changes_at_task_start": false,
+    "preexisting_untracked_user_material": [
+      "docs/Last_Paper_D6_Research_Handoff_2026-11-12.docx",
+      "docs/Last_Paper_Four_Month_Research_Execution_Plan_2026-11_to_2027-02_v1_0.docx",
+      "docs/Last_Paper_Four_Month_Research_Execution_Plan_2026-11_to_2027-02_v1_1.docx",
+      "docs/Last_Paper_Research_Handoff_2026-10-31_After_H1_Triage.docx",
+      "docs/research_triage/h1/",
+      "research_pilot/"
+    ],
+    "git_commit_created": false
+  },
+  "data_audit": {
+    "d4_lite": {
+      "source": "aristrops/mvtec-concepts / MVTec source-side pilot",
+      "first_labeled_images": 36,
+      "present": 18,
+      "absent_assessable": 17,
+      "uncertain": 1,
+      "repeat_agreement": {
+        "agree": 5,
+        "pairs": 8
+      },
+      "image_kind": "original_real_image",
+      "physical_object_identity": "UNKNOWN"
+    },
+    "d4b": {
+      "source": "aristrops/mvtec-concepts",
+      "first_labeled_images": 18,
+      "present": 9,
+      "absent_assessable": 8,
+      "uncertain": 1,
+      "repeat_agreement": {
+        "agree": 7,
+        "pairs": 8
+      },
+      "image_kind": "original_real_image",
+      "physical_object_identity": "UNKNOWN",
+      "dhash_pairs_at_distance_le_4": 4,
+      "source_category_diagnostic": {
+        "scratch_present": 6,
+        "scratch_total": 6,
+        "good_absent": 6,
+        "good_total": 6
+      }
+    },
+    "d4_combined": {
+      "unique_images": 54,
+      "present": 27,
+      "absent_assessable": 25,
+      "uncertain": 2,
+      "exact_sha256_overlap_with_realiad_p2_120": 0,
+      "dconf_eligible": false
+    },
+    "d4_lite_misplaced_export": {
+      "file": "research_pilot/LP_W1_D4LITE/annotations_export.csv",
+      "rows": 26,
+      "presentation_ids_match_d4b": 26,
+      "presentation_ids_match_d4_lite_raw": 0,
+      "complete_rows_identical_to_d4b": 25,
+      "differing_fields_in_remaining_row": [
+        "elapsed_seconds",
+        "last_saved_at_utc"
+      ],
+      "included_in_d4_lite_counts": false
+    },
+    "d5r_p1_metadata": {
+      "products": 18,
+      "exposure_status": "NEW_STUDY_DEV_EXPOSED",
+      "train_metadata_records": 22100,
+      "test_metadata_records": 68415,
+      "total_metadata_records": 90515,
+      "total_sample_key_groups": 18103,
+      "pixels_read": false,
+      "masks_read": false,
+      "feature_tensors_read": false
+    },
+    "d5r_p2_v2": {
+      "annotation_presentations": 58,
+      "unique_annotated_images": 48,
+      "sample_key_groups": 24,
+      "products": 6,
+      "groups_per_product": 4,
+      "repeat_pairs": 10,
+      "repeat_agreement_pairs": 8,
+      "first_label_counts": {
+        "present": 25,
+        "absent_assessable": 19,
+        "unobservable_or_uncertain": 4,
+        "not_applicable": 0
+      },
+      "all_presentation_counts": {
+        "present": 28,
+        "absent_assessable": 25,
+        "unobservable_or_uncertain": 5,
+        "not_applicable": 0
+      },
+      "all_original_split": "test",
+      "all_pilot_exposure_rows": 120,
+      "all_120_status": "NEW_STUDY_PILOT_EXPOSED",
+      "selected_for_v2_annotation": 48,
+      "unselected_but_still_exposed": 72,
+      "physical_object_identity": "INFERRED_FROM_SAMPLE_KEY",
+      "annotation_row_integrity": {
+        "valid_states": true,
+        "blank_states": 0,
+        "duplicate_presentation_ids": 0,
+        "unknown_presentation_ids": 0,
+        "queue_item_mapping_errors": 0
+      },
+      "elapsed_seconds": {
+        "n": 58,
+        "median": 43.315,
+        "mean": 159.50551724137932,
+        "max": 3986.29,
+        "reliable_as_actual_human_cost": false
+      }
+    },
+    "cross_source_identity": {
+      "d4_lite_vs_d4b_exact_sha_overlap": 0,
+      "d4_lite_d4b_vs_realiad_120_exact_sha_overlap": 0,
+      "historical_sealed_hold_item_overlap": "UNKNOWN",
+      "cross_dataset_near_duplicate_status": "UNKNOWN"
+    }
+  },
+  "candidate_data_roles_not_frozen": {
+    "D_fit": {
+      "candidate": "54 human-labeled D4-Lite/D4B CONVAD images",
+      "purpose": "common initial image-level attribute fit",
+      "status": "DEVELOPMENT_EXPOSED_CANDIDATE_ONLY"
+    },
+    "D_dev": {
+      "candidate": "24 D5R-P2 Real-IAD sample-key groups / 48 labeled views",
+      "purpose": "group-disjoint prequential and baseline-only diagnostics",
+      "status": "DEVELOPMENT_EXPOSED_CANDIDATE_ONLY"
+    },
+    "D_conf": {
+      "candidate": null,
+      "status": "NOT_AUTHORIZED_AND_NOT_IDENTIFIED"
+    }
+  },
+  "feature_and_baseline_readiness": {
+    "cache": {
+      "name": "realiad_dino_source_normal_compact",
+      "records": 36465,
+      "categories": 30,
+      "split": "train",
+      "normal_only": true,
+      "patches_per_image": 64,
+      "shards": 285,
+      "global_features_declared": true,
+      "patch_features_declared": true,
+      "patch_indices_and_grid_declared": true,
+      "annotated_pilot_image_features_present": false,
+      "tensor_shards_read": false,
+      "feature_dimension_value_verified": false
+    },
+    "python": {
+      "version": "3.11.9",
+      "numpy": "1.26.4",
+      "pandas": "1.5.3",
+      "Pillow": "12.0.0",
+      "scikit_learn": "1.3.0",
+      "torch": "NOT_INSTALLED"
+    },
+    "local_direct_baselines": {
+      "B0_no_update": "NO_D6_RUNNER",
+      "B1_logistic_or_mlp_replay": "REUSABLE_LIBRARY_PRESENT_NO_MATCHED_D6_RUNNER",
+      "B2_recursive_ridge": "NOT_FOUND",
+      "B3_context_region_prototype": "OTHER_TASK_PROTOTYPE_COMPONENTS_ONLY",
+      "B4_CB2M": "NO_LOCAL_IMPLEMENTATION_OR_PINNED_REVISION"
+    }
+  },
+  "headroom": {
+    "H1_feedback_headroom": "DEVELOPMENT_ONLY_AFTER_SEPARATE_P1_GO",
+    "H2_task_readout_headroom": "NOT_READY_NO_VERIFIED_ATTRIBUTE_MASK_OR_FIXED_READOUT",
+    "BA_AP": "DEFINABLE_ON_ELIGIBLE_DEVELOPMENT_ITEMS_BUT_SMALL_AND_EXPOSED",
+    "TBA": "NOT_FROZEN",
+    "delta_task_candidate": 0.02,
+    "epsilon_fn_candidate": 0.01,
+    "threshold_status": "PROVISIONAL_NOT_FROZEN"
+  },
+  "permissions": {
+    "new_real_iad_json_or_image_access": "NOT_AUTHORIZED_BY_D6_P0",
+    "mask_access": "NOT_AUTHORIZED",
+    "model_training_or_inference": "NOT_AUTHORIZED",
+    "dependency_installation": "NOT_AUTHORIZED",
+    "sealed_target_probe_mint_pcb_access": "PROHIBITED",
+    "git_commit_or_push": "NOT_AUTHORIZED"
+  },
+  "source_files": [
+    {
+      "path": "docs/Last_Paper_Four_Month_Research_Execution_Plan_2026-11_to_2027-02_v1_1.md",
+      "sha256": "1a3b83fa46dcc315963ad2a17deb019a6d01cc596193f5de067db13723fd0844"
+    },
+    {
+      "path": "docs/Last_Paper_D6_Research_Handoff_2026-11-12.docx",
+      "sha256": "a26221d118c6b1d1d643181d28ac5f4ce6e83c707b57b606ba3b8a59a86cf1b5"
+    },
+    {
+      "path": "research_pilot/LP_W1_D4LITE/annotations.csv",
+      "sha256": "004e616ac4fcc8ca1a25c89c9a1a70b8ef52d0497410002ecbaee2ac06033fa0"
+    },
+    {
+      "path": "research_pilot/LP_W1_D4LITE/pilot_manifest.csv",
+      "sha256": "08deb61712e952c93dc41ae5c169bd1c9697b9fd43f3365ffe1986dd9b83871d"
+    },
+    {
+      "path": "research_pilot/LP_W1_D4B/annotations.csv",
+      "sha256": "e3b35d25ef5fef4bae130dd9fb99a4a77c17fa88410ac56d149fa54adfe464d1"
+    },
+    {
+      "path": "research_pilot/LP_W1_D4B/source_manifest.csv",
+      "sha256": "0fcbbf35fd733cea75b4029d60d156042a0f39d2e3df5950cfcb1886d6814925"
+    },
+    {
+      "path": "research_pilot/LP_W1_D5R_SOURCE_METADATA/P1_Source_Metadata_Exposure_Ledger.csv",
+      "sha256": "d16dfb81f414b5197e80e955b50e636cc2eb69f5b39a3fdb5bad1fa3486f8c90"
+    },
+    {
+      "path": "research_pilot/LP_W1_D5R_IMAGE_PILOT_V2_2V/annotations.csv",
+      "sha256": "1d138ff1a420d6134ad7fc1f2830074cc3d41fda5a8d789a81dd55b0f0e4d9a4"
+    },
+    {
+      "path": "research_pilot/LP_W1_D5R_IMAGE_PILOT_V2_2V/annotation_queue.csv",
+      "sha256": "23f3d1084006fd4f1e5f221225ec77862be3facc8713e3bf3592ce448ff3476e"
+    },
+    {
+      "path": "research_pilot/LP_W1_D5R_IMAGE_PILOT_V2_2V/selection_manifest.csv",
+      "sha256": "c0def1f598d38ea68c78da028958f7ee030a7bdf21528d5a249fe8f8a6f81b7f"
+    },
+    {
+      "path": "research_pilot/LP_W1_D5R_IMAGE_PILOT_V2_2V/exposure_ledger.csv",
+      "sha256": "a274bbbdae3a1e4c1822c2968458d9c3878a1f466e82177632be1c5b449d3306"
+    },
+    {
+      "path": "cache/realiad_dino_source_normal_compact/cache_metadata.json",
+      "sha256": "fcaa0363401682398834148d6b9add979492b7e4f0937244f73d802295130d8c"
+    },
+    {
+      "path": "cache/realiad_dino_source_normal_compact/manifest_public.jsonl",
+      "sha256": "4277a7fb7a040df58ec0ac1b89098aa69ccd961696d2ff931ce2888eccf3bb98"
+    },
+    {
+      "path": "scripts/abmg_stage0_compact_cache.py",
+      "sha256": "46c80fe162635380a6bdaf938f3122f2320d2e421b995464a9dc18bc295a8be4"
+    },
+    {
+      "path": "scripts/abmg_stage0_foundation.py",
+      "sha256": "6e287288aec74994f995071c1486bf909ecb2c399bebe0e936c1beb12347bdd5"
+    },
+    {
+      "path": "requirements-stage0.txt",
+      "sha256": "4d6c56eee922b97a0fa30b56002e8ad01863cafe39dc67856520ca63dde8aeff"
+    }
+  ]
+}
