@@ -45,7 +45,13 @@ TAPE_SHA = "13561809074aad72e2f13289723ccba8addc4768395480c50d3173abf66e8cc1"
 CHECKPOINT_SHA = "36e4deffbaef061a2576705b0c36f93621e2ae20bf6274694821b0b492551b51"
 HUB_TREE_SHA = "7dd1641727d0b7b0c58f803906d03da05b8660ba8b72da5b3c5705cb9a1b4b8c"
 PREPROCESS_SHA = "4d3a5906bacafde057f806bbe53ccf24e4960574837e9c47bd273233223ec56e"
-EXPECTED_HEAD = "815e5c801be408d08807089d9b48eb372e9258a6"
+APPROVED_BASELINE_COMMIT = "815e5c801be408d08807089d9b48eb372e9258a6"
+HISTORICAL_ORIGINAL_RUN_STARTING_HEAD = APPROVED_BASELINE_COMMIT
+REVIEWED_P1B_ARCHIVE_COMMIT = "743ee24854465c3f4c8079aaaa74a6e3dd93ad44"
+REVIEWED_P1B_ARCHIVE_SHA256 = {
+    "scripts/research_d6/p1b/core.py": "f45aafa175dc4691ea505a2b130f01dd20d76f9987d676772d47f2ab656f9f58",
+    "scripts/research_d6/p1b/run_experiment.py": "af3f221e885a51aa14d9adbdbde8c8ddf30b163713730e58329460cf7fbce54e",
+}
 EXPECTED_BRANCH = "stage3-eg-famar-execution"
 ALPHAS = (1e-5, 1e-4, 1e-3)
 LAMBDAS = (0.1, 1.0, 10.0)
@@ -113,6 +119,61 @@ def git_identity() -> tuple[str, str]:
     return branch, head
 
 
+def git_is_ancestor(ancestor: str, descendant: str) -> bool:
+    """Return ancestry status; git errors are not treated as a valid negative result."""
+    result = subprocess.run(
+        ["git", "merge-base", "--is-ancestor", ancestor, descendant],
+        cwd=ROOT, text=True, capture_output=True, check=False,
+    )
+    require(result.returncode in (0, 1),
+            f"could not verify Git ancestry ({result.returncode}): {result.stderr.strip()}")
+    return result.returncode == 0
+
+
+def validate_revision_policy(
+    branch: str,
+    head: str,
+    ancestry_check: Any | None = None,
+) -> dict[str, str]:
+    """Accept descendants of the approved baseline while pinning the research branch."""
+    require(branch == EXPECTED_BRANCH, f"unexpected branch: {branch}")
+    check_ancestor = ancestry_check or git_is_ancestor
+    require(check_ancestor(APPROVED_BASELINE_COMMIT, head),
+            f"approved baseline {APPROVED_BASELINE_COMMIT} is not an ancestor of execution HEAD {head}")
+    return {
+        "branch": branch,
+        "execution_head": head,
+        "approved_baseline_commit": APPROVED_BASELINE_COMMIT,
+    }
+
+
+def require_fingerprint(actual: str, expected: str, label: str) -> None:
+    require(actual == expected, f"{label} fingerprint mismatch")
+
+
+def archived_p1b_implementation_sha256() -> dict[str, str]:
+    """Hash the reviewed implementation as stored in its archived commit."""
+    result_hashes: dict[str, str] = {}
+    for rel_path, expected in REVIEWED_P1B_ARCHIVE_SHA256.items():
+        result = subprocess.run(
+            ["git", "show", f"{REVIEWED_P1B_ARCHIVE_COMMIT}:{rel_path}"],
+            cwd=ROOT, capture_output=True, check=False,
+        )
+        require(result.returncode == 0,
+                f"reviewed P1-B source unavailable at {REVIEWED_P1B_ARCHIVE_COMMIT}:{rel_path}")
+        actual = sha_bytes(result.stdout)
+        require_fingerprint(actual, expected, f"archived P1-B source {rel_path}")
+        result_hashes[rel_path] = actual
+    return result_hashes
+
+
+def current_p1b_implementation_sha256() -> dict[str, str]:
+    return {
+        "run_experiment.py": sha_file(Path(__file__).resolve()),
+        "core.py": sha_file(Path(__file__).with_name("core.py")),
+    }
+
+
 def _source_records() -> dict[str, dict[str, Any]]:
     """Rebuild the authorized whitelist from the three frozen source manifests."""
     sources = [
@@ -147,8 +208,9 @@ def _source_records() -> dict[str, dict[str, Any]]:
 def capture_preflight() -> dict[str, Any]:
     """Integrity-only gate. Reads authorized image bytes only for SHA verification."""
     branch, head = git_identity()
-    require(branch == EXPECTED_BRANCH, f"unexpected branch: {branch}")
-    require(head == EXPECTED_HEAD, f"unexpected starting commit: {head}")
+    revision = validate_revision_policy(branch, head)
+    reviewed_archive_sha = archived_p1b_implementation_sha256()
+    current_implementation_sha = current_p1b_implementation_sha256()
     input_path = P1A_DIR / "input_manifest.csv"
     feature_index_path = P1A_DIR / "feature_manifest.csv"
     provenance_path = P1A_DIR / "run_provenance.json"
@@ -165,16 +227,16 @@ def capture_preflight() -> dict[str, Any]:
             "P1-A role counts are not 54 D-fit / 48 D-dev")
     require(status.get("status") == "PASS" and status.get("completed_unique_images") == 102,
             "P1-A extraction status is not PASS/102")
-    require(sha_file(input_path) == INPUT_MANIFEST_SHA, "P1-A input manifest SHA mismatch")
-    require(sha_file(feature_index_path) == FEATURE_INDEX_SHA, "P1-A feature index SHA mismatch")
+    require_fingerprint(sha_file(input_path), INPUT_MANIFEST_SHA, "P1-A input manifest")
+    require_fingerprint(sha_file(feature_index_path), FEATURE_INDEX_SHA, "P1-A feature index")
     sources = _source_records()
     in_by_id = {r["image_id"]: r for r in input_rows}
     feature_by_id = {r["image_id"]: r for r in feature_rows}
     require(set(in_by_id) == set(sources) == set(feature_by_id),
             "independently reconstructed IDs differ from P1-A cache")
-    require(provenance.get("checkpoint_sha256") == CHECKPOINT_SHA, "checkpoint pin mismatch")
-    require(provenance.get("hub_source_tree_sha256") == HUB_TREE_SHA, "Hub source tree pin mismatch")
-    require(provenance.get("preprocess_fingerprint") == PREPROCESS_SHA, "preprocessing fingerprint mismatch")
+    require_fingerprint(provenance.get("checkpoint_sha256", ""), CHECKPOINT_SHA, "DINO checkpoint")
+    require_fingerprint(provenance.get("hub_source_tree_sha256", ""), HUB_TREE_SHA, "DINO Hub source tree")
+    require_fingerprint(provenance.get("preprocess_fingerprint", ""), PREPROCESS_SHA, "preprocessing")
     p1a_script = ROOT / "scripts/research_d6/p1a/extract_features.py"
     current_p1a_script_sha = sha_file(p1a_script)
     require(all(r["adapter_sha256"] == current_p1a_script_sha for r in feature_rows),
@@ -239,7 +301,7 @@ def capture_preflight() -> dict[str, Any]:
 
     tape_rows = read_csv(TAPE_PATH)
     tape_sha = sha_file(TAPE_PATH)
-    require(tape_sha == TAPE_SHA, "controlled W/X tape SHA mismatch")
+    require_fingerprint(tape_sha, TAPE_SHA, "controlled W/X tape")
     for protocol in ("W", "X"):
         rows = [r for r in tape_rows if r["protocol"] == protocol]
         queries = [r for r in rows if r["feedback_or_future_role"] == "feedback_query"]
@@ -293,6 +355,12 @@ def capture_preflight() -> dict[str, Any]:
     snapshot_sha = sha_bytes(json.dumps(snapshot_material, sort_keys=True).encode("utf-8"))
     return {
         "status": "PASS", "branch": branch, "git_sha": head,
+        "execution_head": revision["execution_head"],
+        "approved_baseline_commit": revision["approved_baseline_commit"],
+        "historical_original_run_starting_head": HISTORICAL_ORIGINAL_RUN_STARTING_HEAD,
+        "reviewed_p1b_archive_commit": REVIEWED_P1B_ARCHIVE_COMMIT,
+        "reviewed_p1b_archived_implementation_sha256": reviewed_archive_sha,
+        "p1b_implementation_sha256": current_implementation_sha,
         "input_manifest_sha256": sha_file(input_path),
         "feature_manifest_sha256": sha_file(feature_index_path),
         "feedback_tape_sha256": tape_sha,
@@ -734,6 +802,12 @@ def main() -> int:
         "schema": "lp.d6.p1b.run_provenance.v1", "status": final_status,
         "created_utc": datetime.now(timezone.utc).isoformat(),
         "branch": integrity["branch"], "git_sha": integrity["git_sha"],
+        "execution_head": integrity["execution_head"],
+        "approved_baseline_commit": integrity["approved_baseline_commit"],
+        "historical_original_run_starting_head": integrity["historical_original_run_starting_head"],
+        "reviewed_p1b_archive_commit": integrity["reviewed_p1b_archive_commit"],
+        "reviewed_p1b_archived_implementation_sha256": integrity["reviewed_p1b_archived_implementation_sha256"],
+        "p1b_implementation_sha256_at_execution": integrity["p1b_implementation_sha256"],
         "python_executable": sys.executable, "python_version": platform.python_version(),
         "packages": package_names, "device": "cpu", "cuda_visible_devices": "",
         "torch_imported": False, "thread_limit": 2,
