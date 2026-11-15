@@ -31,10 +31,14 @@ from proximal_logistic import (  # noqa: E402
     ProximalLogistic,
     SolverFailure,
     fit_lbfgsb,
+    fit_lbfgsb,
     hessian_vector_product,
     objective_and_gradient,
 )
 from run_e1 import (  # noqa: E402
+    APPROVED_G0_COMMIT,
+    directional_gradient_check,
+    is_ancestor,
     protected_snapshot,
     replay_proximal,
     validate_feedback_future_roles,
@@ -77,6 +81,21 @@ def tiny_data():
 
 
 class ObjectiveTests(unittest.TestCase):
+    def test_new_style_gamma_zero_initializer_is_numerically_converged(self):
+        rng = np.random.default_rng(20261115)
+        X = rng.normal(size=(52, 12)).astype(np.float32)
+        y = np.asarray([1] * 27 + [0] * 25, dtype=np.int8)
+        rng.shuffle(y)
+        old_w = rng.normal(size=12) * 0.03
+        old_b = 0.12
+        theta, diagnostics = fit_lbfgsb(
+            X, y, old_w, np.concatenate([old_w, [old_b]]), lam=LAMBDA, gamma=0.0
+        )
+        self.assertEqual(diagnostics.status, "PASS")
+        self.assertLessEqual(diagnostics.gradient_inf_norm, GRAD_INF_TOL)
+        check = directional_gradient_check(theta, X, y, theta[:-1])
+        self.assertLessEqual(check["max_abs_directional_error"], 1e-7)
+
     def test_gradient_matches_central_finite_differences(self):
         rng = np.random.default_rng(20261115)
         X = rng.normal(size=(11, 7)).astype(np.float64)
@@ -137,6 +156,48 @@ class ObjectiveTests(unittest.TestCase):
 
 
 class ReplayTests(unittest.TestCase):
+    def test_failed_optimizer_stops_only_its_trajectory_without_state_mutation(self):
+        base_x, base_y, w0, b0, feedback, future = tiny_data()
+        failed_result = SimpleNamespace(
+            codex_objective=0.4,
+            codex_gradient_inf_norm=1.2e-6,
+            codex_elapsed_seconds=0.01,
+            nit=7,
+            nfev=9,
+            message="CONVERGENCE: REL_REDUCTION_OF_F_<=_FACTR*EPSMCH",
+        )
+
+        def reject_update(_model, _x, _y, _event_key):
+            raise SolverFailure("FTOL_ONLY_NOT_CONVERGED", "synthetic strict-gate failure",
+                                result=failed_result)
+
+        with patch.object(ProximalLogistic, "observe", reject_update):
+            result = replay_proximal(
+                protocol="X", gamma=1e-3, x_fit=base_x, y_fit=base_y,
+                w0=w0, b0=b0, feedback=feedback, future=future,
+                cpu_start=time.process_time(),
+            )
+        self.assertEqual(result["status"], "FTOL_ONLY_NOT_CONVERGED")
+        self.assertEqual(result["fit_count"], 0)
+        self.assertEqual(sorted(result["states"]), [0])
+        self.assertEqual(len(result["rows"]["events"]), 1)
+        row = result["rows"]["events"][0]
+        self.assertTrue(row["update_attempted"])
+        self.assertFalse(row["update_applied"])
+        self.assertEqual(row["state_sha256_before"], row["state_sha256_after"])
+
+    def test_all_gamma_tracks_share_exact_initial_state(self):
+        base_x, base_y, w0, b0, feedback, future = tiny_data()
+        initial = []
+        for gamma in (0.0, 1e-4, 1e-3):
+            result = replay_proximal(protocol="X", gamma=gamma, x_fit=base_x, y_fit=base_y,
+                                     w0=w0, b0=b0, feedback=feedback, future=future,
+                                     cpu_start=time.process_time())
+            initial.append(result["states"][0])
+        for state in initial[1:]:
+            np.testing.assert_array_equal(state["coef"], initial[0]["coef"])
+            np.testing.assert_array_equal(state["intercept"], initial[0]["intercept"])
+
     def test_prediction_precedes_reveal_and_unknown_states_do_not_update(self):
         base_x, base_y, w0, b0, feedback, future = tiny_data()
         revealed = []
@@ -221,6 +282,9 @@ class ReplayTests(unittest.TestCase):
 
 
 class InputPreservationTests(unittest.TestCase):
+    def test_approved_g0_commit_is_in_current_head_ancestry(self):
+        self.assertTrue(is_ancestor(APPROVED_G0_COMMIT, "HEAD"))
+
     def test_registered_preflight_and_original_p1b_hashes(self):
         before = protected_snapshot()
         integrity = p1b_runner.capture_preflight()

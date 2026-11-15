@@ -138,6 +138,10 @@ def fit_lbfgsb(
     value, gradient = objective_and_gradient(theta, x64, y64, anchor, lam=lam, gamma=gamma)
     grad_inf = float(np.max(np.abs(gradient)))
     message = str(result.message)
+    # Preserve diagnostics even when a frozen acceptance threshold rejects the fit.
+    result.codex_elapsed_seconds = elapsed
+    result.codex_objective = value
+    result.codex_gradient_inf_norm = grad_inf
     ftol_only = grad_inf > GRAD_INF_TOL and (
         "RELATIVE REDUCTION" in message.upper() or bool(result.success)
     )

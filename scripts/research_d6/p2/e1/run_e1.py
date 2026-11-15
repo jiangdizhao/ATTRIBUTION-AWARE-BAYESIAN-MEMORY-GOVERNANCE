@@ -9,6 +9,7 @@ import os
 import platform
 import subprocess
 import sys
+import threading
 import time
 from collections import Counter, defaultdict
 from dataclasses import asdict
@@ -44,6 +45,7 @@ from proximal_logistic import (  # noqa: E402
     LAMBDA,
     ProximalLogistic,
     SolverFailure,
+    fit_lbfgsb,
     hessian_vector_product,
     objective_and_gradient,
 )
@@ -54,7 +56,9 @@ P1_RUN_DIR = ROOT / "outputs/research_d6/p1b/run_20261113_01"
 P1_R1_DIR = ROOT / "outputs/research_d6/p1b_r1"
 P1_HASH_MANIFEST = P1_R1_DIR / "original_run_artifact_hashes.json"
 G0_DIR = ROOT / "docs/research_d6/p2/g0"
-RUN_DIR = ROOT / "outputs/research_d6/p2/e1/run_20261115_01"
+RUN_DIR = ROOT / "outputs/research_d6/p2/e1/run_20261115_r1_01"
+APPROVED_G0_COMMIT = "a50459f6061a951ca8aa7d6f34bd0863b6145ebd"
+EXPECTED_R1_START_HEAD = "4c4319397de9496526248214a0ebe9e678f5ede7"
 MAX_CPU_SECONDS = 1800.0
 MAX_RSS_BYTES = 1024 * 1024 * 1024
 MAX_OUTPUT_BYTES = 100 * 1024 * 1024
@@ -66,6 +70,7 @@ NEWTON_OBJECTIVE_ATOL = 1e-8
 NEWTON_MAX_FUTURE_SCORE_ABS = 1e-5
 INITIAL_SCORE_ATOL = 1e-6
 INITIAL_SCORE_RTOL = 1e-6
+ALL_GAMMAS = (0.0, *GAMMAS)
 
 
 def read_csv(path: Path) -> list[dict[str, str]]:
@@ -140,6 +145,80 @@ def protected_snapshot() -> dict[str, dict[str, Any]]:
 def require(condition: bool, message: str) -> None:
     if not condition:
         raise RuntimeError(message)
+
+
+def is_ancestor(ancestor: str, descendant: str) -> bool:
+    return subprocess.run(
+        ["git", "merge-base", "--is-ancestor", ancestor, descendant],
+        cwd=ROOT,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        check=False,
+    ).returncode == 0
+
+
+class PeakRssSampler:
+    """Sample process RSS during the complete run without extra dependencies."""
+
+    def __init__(self, interval_seconds: float = 0.05) -> None:
+        self.process = psutil.Process()
+        self.interval_seconds = interval_seconds
+        self.peak_bytes = self.process.memory_info().rss
+        self._stop = threading.Event()
+        self._thread = threading.Thread(target=self._sample, name="e1-r1-rss", daemon=True)
+
+    def _sample(self) -> None:
+        while not self._stop.wait(self.interval_seconds):
+            try:
+                self.peak_bytes = max(self.peak_bytes, self.process.memory_info().rss)
+            except psutil.Error:
+                return
+
+    def start(self) -> None:
+        self._thread.start()
+
+    def stop(self) -> int:
+        self._stop.set()
+        if self._thread.is_alive():
+            self._thread.join(timeout=1.0)
+        self.peak_bytes = max(self.peak_bytes, self.process.memory_info().rss)
+        return int(self.peak_bytes)
+
+
+def source_code_hashes() -> dict[str, str]:
+    return {
+        "run_e1.py": sha_file(Path(__file__).resolve()),
+        "proximal_logistic.py": sha_file(Path(__file__).resolve().with_name("proximal_logistic.py")),
+    }
+
+
+def directional_gradient_check(
+    theta: np.ndarray,
+    x: np.ndarray,
+    y: np.ndarray,
+    w0: np.ndarray,
+    *,
+    gamma: float = 0.0,
+    seed: int = 20261115,
+    directions: int = 12,
+    epsilon: float = 1e-6,
+) -> dict[str, float | int]:
+    """Compare analytic directional derivatives to centered finite differences."""
+    _value, analytic = objective_and_gradient(theta, x, y, w0, lam=LAMBDA, gamma=gamma)
+    rng = np.random.default_rng(seed)
+    errors: list[float] = []
+    for _ in range(directions):
+        direction = rng.normal(size=np.asarray(theta).size)
+        direction /= np.linalg.norm(direction)
+        plus = objective_and_gradient(theta + epsilon * direction, x, y, w0,
+                                      lam=LAMBDA, gamma=gamma)[0]
+        minus = objective_and_gradient(theta - epsilon * direction, x, y, w0,
+                                       lam=LAMBDA, gamma=gamma)[0]
+        numeric = (plus - minus) / (2.0 * epsilon)
+        exact = float(np.dot(analytic, direction))
+        errors.append(abs(numeric - exact))
+    return {"directions": directions, "epsilon": epsilon,
+            "max_abs_directional_error": max(errors), "mean_abs_directional_error": float(np.mean(errors))}
 
 
 def validate_feedback_future_roles(feedback: Iterable[Any], future: Iterable[Any]) -> None:
@@ -227,19 +306,34 @@ def load_registered_anchor(x_fit: np.ndarray, y_fit: np.ndarray) -> dict[str, An
             "archived Logistic D-fit feature history differs from authorized 52 binary records")
     require(base_y.dtype == np.int8 and np.array_equal(base_y.astype(np.int64), np.asarray(y_fit, dtype=np.int64)),
             "archived Logistic D-fit label history differs from authorized first labels")
-    w0 = initial_w_matrix.reshape(-1).astype(np.float64)
-    b0 = float(initial_b_array[0])
-    anchor_value, anchor_grad = objective_and_gradient(
-        np.concatenate([w0, [b0]]), x_fit, y_fit, w0, lam=LAMBDA, gamma=0.0
-    )
-    require(np.isfinite(anchor_value) and np.isfinite(anchor_grad).all(), "registered B0 objective/gradient is nonfinite")
+    old_w0 = initial_w_matrix.reshape(-1).astype(np.float64)
+    old_b0 = float(initial_b_array[0])
 
-    # Independently reproduce P1-B's learner state digest convention.
+    # Re-optimize the registered mean-log-loss + L2(w) objective. The historic
+    # sklearn state is only a numerical starting guess; it is not the new anchor.
+    initial_theta = np.concatenate([old_w0, np.asarray([old_b0], dtype=np.float64)])
+    solved_theta, initialization_fit = fit_lbfgsb(
+        x_fit, y_fit, old_w0, initial_theta, lam=LAMBDA, gamma=0.0
+    )
+    w0 = solved_theta[:-1].copy()
+    b0 = float(solved_theta[-1])
+    anchor_value, anchor_grad = objective_and_gradient(
+        solved_theta, x_fit, y_fit, w0, lam=LAMBDA, gamma=0.0
+    )
+    require(initialization_fit.status == "PASS", "new D-fit initializer failed the registered solver contract")
+    require(np.isfinite(anchor_value) and np.isfinite(anchor_grad).all(), "new B0 objective/gradient is nonfinite")
+    require(float(np.max(np.abs(anchor_grad))) <= GRAD_INF_TOL,
+            "new D-fit initializer exceeds the registered gradient threshold")
+    gradient_check = directional_gradient_check(solved_theta, x_fit, y_fit, w0)
+    require(float(gradient_check["max_abs_directional_error"]) <= 1e-7,
+            "new D-fit initializer analytic gradient disagrees with centered finite differences")
+
+    # Independently reproduce P1-B's archived learner state digest convention.
     digest_fn = p1b_core.array_digest
-    init_digest = digest_fn(initial_w_matrix.astype(np.float64), initial_b_array.astype(np.float64))
+    old_digest = digest_fn(initial_w_matrix.astype(np.float64), initial_b_array.astype(np.float64))
     for protocol in ("X", "W"):
         idx = idx_by_key[(protocol, "B1-Refit", "refit_alpha_1e-04")]
-        require(idx["initial_state_sha256"] == init_digest,
+        require(idx["initial_state_sha256"] == old_digest,
                 f"{protocol} P1-B full-history Refit initial state digest mismatch")
         state = final_states[protocol]
         extra = b"\0".join(bytes.fromhex(v) for v in state["paid_event_keys_utf8_hex"].tolist())
@@ -260,13 +354,20 @@ def load_registered_anchor(x_fit: np.ndarray, y_fit: np.ndarray) -> dict[str, An
     return {
         "w0": w0,
         "b0": b0,
+        "old_w0": old_w0,
+        "old_b0": old_b0,
         "b0_threshold": float(b0_threshold[0]),
         "base_x": base_x,
         "base_y": base_y,
         "anchor_objective": anchor_value,
         "anchor_gradient_inf": float(np.max(np.abs(anchor_grad))),
         "anchor_gradient_vector": anchor_grad.copy(),
-        "initial_learner_state_sha256": init_digest,
+        "initial_learner_state_sha256": digest_fn(w0.reshape(1, -1), np.asarray([b0], dtype=np.float64)),
+        "historical_learner_state_sha256": old_digest,
+        "initialization_fit": initialization_fit,
+        "initialization_gradient_check": gradient_check,
+        "initialization_parameter_l2_difference": float(np.linalg.norm(w0 - old_w0)),
+        "initialization_intercept_difference": float(b0 - old_b0),
         "final_states": final_states,
         "state_index": idx_by_key,
     }
@@ -459,7 +560,55 @@ def _score_rows(protocol: str, method: str, config_id: str) -> list[dict[str, st
             r["config_id"] == config_id and r["role"] == "future_eval"]
 
 
-def verify_registered_initial_scores(
+def historical_gamma0_comparison(
+    metric_rows: list[dict[str, Any]], prediction_rows: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    """Compare new matched gamma=0 outputs to P1-B as historical reference only."""
+    old_metrics = [r for r in read_csv(P1_RUN_DIR / "checkpoint_metrics.csv")
+                   if r["method"] == "B1-Refit" and r["config_id"] == "refit_alpha_1e-04"]
+    old_predictions = [r for r in read_csv(P1_RUN_DIR / "future_and_query_predictions.csv")
+                       if r["method"] == "B1-Refit" and r["config_id"] == "refit_alpha_1e-04" and
+                       r["role"] == "future_eval"]
+    rows: list[dict[str, Any]] = []
+    for protocol in ("X", "W"):
+        for checkpoint in CHECKPOINTS:
+            new_metric = [r for r in metric_rows if r["protocol"] == protocol and
+                          float(r["gamma"]) == 0.0 and int(r["checkpoint"]) == checkpoint]
+            if not new_metric:
+                continue
+            old_metric = [r for r in old_metrics if r["protocol"] == protocol and
+                          int(r["checkpoint"]) == checkpoint]
+            require(len(new_metric) == len(old_metric) == 1,
+                    f"{protocol} checkpoint {checkpoint} lacks unique current/historical metrics")
+            new_scores = {r["image_id"]: float(r["score"]) for r in prediction_rows
+                          if r["protocol"] == protocol and float(r["gamma"]) == 0.0 and
+                          int(r["checkpoint"]) == checkpoint}
+            old_scores = {r["image_id"]: float(r["score"]) for r in old_predictions
+                          if r["protocol"] == protocol and int(r["checkpoint"]) == checkpoint}
+            require(new_scores.keys() == old_scores.keys(),
+                    f"{protocol} checkpoint {checkpoint} historical/current future IDs differ")
+            score_delta = np.asarray([new_scores[i] - old_scores[i] for i in sorted(new_scores)], dtype=np.float64)
+            rows.append({
+                "protocol": protocol,
+                "checkpoint": checkpoint,
+                "comparison_role": "HISTORICAL_REFERENCE_ONLY",
+                "historical_baseline": "P1-B archived B1-Refit alpha=1e-4",
+                "current_baseline": "E1-R1 matched full-history gamma=0 L-BFGS-B",
+                "historical_ba_product_macro": float(old_metric[0]["ba_product_macro"]),
+                "current_ba_product_macro": float(new_metric[0]["ba_product_macro"]),
+                "ba_delta_current_minus_historical": float(new_metric[0]["ba_product_macro"]) -
+                                                     float(old_metric[0]["ba_product_macro"]),
+                "historical_ap_paired_product_macro": float(old_metric[0]["ap_product_macro_paired_class"]),
+                "current_ap_paired_product_macro": float(new_metric[0]["ap_product_macro_paired_class"]),
+                "ap_delta_current_minus_historical": float(new_metric[0]["ap_product_macro_paired_class"]) -
+                                                     float(old_metric[0]["ap_product_macro_paired_class"]),
+                "score_max_abs_difference": float(np.max(np.abs(score_delta))),
+                "score_rmse": float(np.sqrt(np.mean(score_delta ** 2))),
+            })
+    return rows
+
+
+def compare_historical_initial_scores(
     features: dict[str, np.ndarray],
     protocols: dict[str, tuple[list[Any], list[Any]]],
     w0: np.ndarray,
@@ -474,12 +623,9 @@ def verify_registered_initial_scores(
             by_id = {r["image_id"]: float(r["score"]) for r in original}
             require(set(by_id) == set(predicted), f"{protocol} P1-B {baseline_method} checkpoint-0 future IDs differ")
             max_abs = max(abs(predicted[i] - by_id[i]) for i in predicted)
-            require(np.allclose(
-                np.asarray([predicted[i] for i in sorted(predicted)]),
-                np.asarray([by_id[i] for i in sorted(predicted)]),
-                atol=INITIAL_SCORE_ATOL,
-                rtol=INITIAL_SCORE_RTOL,
-            ), f"{protocol} checkpoint-0 scores disagree with preserved {baseline_method}")
+            # The newly optimized initializer is expected to differ slightly
+            # from the archived sklearn iterate. Preserve that delta as a
+            # historical diagnostic; only identity/coverage is a hard gate.
             max_abs_by_protocol[f"{protocol}_{baseline_method}"] = max_abs
     return max_abs_by_protocol
 
@@ -523,12 +669,14 @@ def replay_proximal(
 ) -> dict[str, Any]:
     validate_feedback_future_roles(feedback, future)
     learner = ProximalLogistic(x_fit, y_fit, w0, b0, gamma=gamma)
+    trajectory_source = f"r1_matched_full_history_lbfgsb_gamma_{gamma:.0e}"
     rows: dict[str, list[dict[str, Any]]] = {"metrics": [], "products": [], "events": [], "predictions": []}
     states: dict[int, dict[str, np.ndarray]] = {}
     previous_predictions: dict[str, int] | None = None
     initial_predictions: dict[str, int] | None = None
     cumulative_harmful = cumulative_corrected = 0
     fit_count = 0
+    failure: dict[str, Any] | None = None
     previous_update_ms: float | None = None
     previous_iterations: int | None = None
     previous_nfev: int | None = None
@@ -542,7 +690,7 @@ def replay_proximal(
         metric, product_rows, current_predictions, cumulative_harmful, cumulative_corrected = _append_evaluation_rows(
             protocol=protocol,
             gamma=gamma,
-            source="new_proximal_lbfgsb",
+            source=trajectory_source,
             checkpoint=cp,
             scores=scores,
             future=future,
@@ -571,7 +719,7 @@ def replay_proximal(
         metric["future_inference_ms"] = inference_ms
         rows["metrics"].append(metric)
         rows["products"].extend(product_rows)
-        _record_future_predictions(rows["predictions"], protocol, gamma, "new_proximal_lbfgsb", cp, scores, future)
+        _record_future_predictions(rows["predictions"], protocol, gamma, trajectory_source, cp, scores, future)
         if cp == 0:
             initial_predictions = current_predictions.copy()
         previous_predictions = current_predictions.copy()
@@ -592,7 +740,52 @@ def replay_proximal(
         update_ms = 0.0
         fit_result = None
         if target is not None:
-            fit_result = learner.observe(event.x, target, event.event_id)
+            try:
+                fit_result = learner.observe(event.x, target, event.event_id)
+            except SolverFailure as exc:
+                failed_result = exc.result
+                state_after = learner.state_digest()
+                failure = {
+                    "status": exc.status,
+                    "message": str(exc),
+                    "event_id": event.event_id,
+                    "stream_order": event.stream_order,
+                    "image_id": event.image_id,
+                    "objective": getattr(failed_result, "codex_objective", None),
+                    "gradient_inf_norm": getattr(failed_result, "codex_gradient_inf_norm", None),
+                    "elapsed_seconds": getattr(failed_result, "codex_elapsed_seconds", None),
+                    "iterations": int(getattr(failed_result, "nit", 0)),
+                    "function_evaluations": int(getattr(failed_result, "nfev", 0)),
+                    "solver_message": str(getattr(failed_result, "message", "")),
+                    "training_rows": len(learner.training_history()[1]) + 1,
+                }
+                rows["events"].append({
+                    "protocol": protocol, "gamma": gamma,
+                    "event_id": event.event_id, "stream_order": event.stream_order,
+                    "image_id": event.image_id, "product": event.product,
+                    "sample_key": event.sample_key,
+                    "prediction_timing": "before_reveal",
+                    "pre_reveal_score": pre_score,
+                    "pre_reveal_prediction": pre_prediction,
+                    "revealed_state_evaluator_only": revealed_state,
+                    "binary_target_if_revealed": target,
+                    "feedback_cost_unit_assumed": 1,
+                    "update_attempted": True, "update_applied": False,
+                    "update_latency_ms": failure["elapsed_seconds"] * 1000.0
+                        if failure["elapsed_seconds"] is not None else None,
+                    "pre_reveal_prediction_latency_ms": prediction_ms,
+                    "state_sha256_before": state_before,
+                    "state_sha256_after": state_after,
+                    "state_payload_bytes_after": learner.state_payload_bytes(),
+                    "solver_status": exc.status,
+                    "objective_after_update": failure["objective"],
+                    "gradient_inf_after_update": failure["gradient_inf_norm"],
+                    "solver_iterations": failure["iterations"],
+                    "solver_message": failure["solver_message"],
+                })
+                require(state_before == state_after,
+                        "failed L-BFGS-B update mutated the learner state")
+                break
             update_ms = fit_result.elapsed_seconds * 1000.0
             fit_count += 1
             previous_update_ms = update_ms
@@ -618,6 +811,7 @@ def replay_proximal(
             "revealed_state_evaluator_only": revealed_state,
             "binary_target_if_revealed": target,
             "feedback_cost_unit_assumed": 1,
+            "update_attempted": target is not None,
             "update_applied": target is not None,
             "update_latency_ms": update_ms,
             "pre_reveal_prediction_latency_ms": prediction_ms,
@@ -631,9 +825,13 @@ def replay_proximal(
         })
         checkpoint(event.stream_order)
     expected_updates = sum(p1b_core.binary_target(event.state) is not None for event in feedback)
-    require(fit_count == expected_updates, f"{protocol} proximal update count differs from binary feedback history")
+    if failure is None:
+        require(fit_count == expected_updates,
+                f"{protocol} full-history update count differs from binary feedback history")
     require(learner.optimization_count == fit_count, "fit counter disagrees with valid binary feedback count")
-    return {"rows": rows, "states": states, "fit_count": fit_count, "learner": learner}
+    return {"rows": rows, "states": states, "fit_count": fit_count, "learner": learner,
+            "status": "PASS" if failure is None else failure["status"],
+            "expected_fit_count": expected_updates, "failure": failure}
 
 
 def _baseline_replay(
@@ -830,6 +1028,8 @@ def numerical_cross_checks(
         for gamma in GAMMAS:
             states = trajectories[(protocol, gamma)]["states"]
             for checkpoint_id in VERIFY_CHECKPOINTS:
+                if checkpoint_id not in states:
+                    continue
                 if time.process_time() - cpu_start > MAX_CPU_SECONDS:
                     raise TimeoutError("30-minute cumulative CPU experiment ceiling reached during Newton-CG checks")
                 events = [event for event in feedback if event.stream_order <= checkpoint_id and
@@ -946,8 +1146,21 @@ def build_reports_data(
                    "objective": anchor["anchor_objective"],
                    "gradient_inf_norm": anchor["anchor_gradient_inf"],
                    "b0_frozen": True,
+                   "historical_state_sha256": anchor["historical_learner_state_sha256"],
+                   "historical_objective_at_old_state": objective_and_gradient(
+                       np.concatenate([anchor["old_w0"], [anchor["old_b0"]]]),
+                       anchor["base_x"], anchor["base_y"], anchor["old_w0"],
+                       lam=LAMBDA, gamma=0.0)[0],
+                   "historical_gradient_inf_at_old_state": float(np.max(np.abs(objective_and_gradient(
+                       np.concatenate([anchor["old_w0"], [anchor["old_b0"]]]),
+                       anchor["base_x"], anchor["base_y"], anchor["old_w0"],
+                       lam=LAMBDA, gamma=0.0)[1]))),
+                   "new_minus_historical_weight_l2": anchor["initialization_parameter_l2_difference"],
+                   "new_minus_historical_intercept": anchor["initialization_intercept_difference"],
+                   "initialization_solver": asdict(anchor["initialization_fit"]),
+                   "initialization_gradient_finite_difference": anchor["initialization_gradient_check"],
                    "initial_scores_max_abs_diff_vs_p1b": initial_score_diffs,
-                   "source": "preserved P1-B full-history Logistic alpha=1e-4 initial state"},
+                   "source": "new registered SciPy L-BFGS-B solve; archived sklearn state used only as initial guess"},
         "optimizer": {"lambda": LAMBDA, "gamma": [0.0, *GAMMAS],
                       "lbfgsb_options": {"ftol": 1e-12, "gtol": 1e-8, "maxiter": 10000, "maxls": 50, "maxcor": 10},
                       "gradient_inf_success_threshold": GRAD_INF_TOL,
@@ -955,7 +1168,9 @@ def build_reports_data(
                       "newton_verification_all_pass": all(c["passed"] for c in checks),
                       "newton_objective_atol": NEWTON_OBJECTIVE_ATOL,
                       "newton_max_future_score_abs": NEWTON_MAX_FUTURE_SCORE_ABS},
-        "fit_summary": {"proximal_optimization_count": sum(int(r["valid_binary_update_count"]) for r in fits),
+        "fit_summary": {"online_optimization_count": sum(int(r["valid_binary_update_count"]) for r in fits),
+                        "initialization_optimization_count": 1,
+                        "total_l_bfgs_b_optimizations": 1 + sum(int(r["valid_binary_update_count"]) for r in fits),
                         "successes": sum(r.get("status") == "PASS" for r in fits),
                         "failures": sum(r.get("status") != "PASS" for r in fits),
                         "configurations": fits},
@@ -964,6 +1179,7 @@ def build_reports_data(
         "elapsed_wall_seconds": elapsed_wall,
         "elapsed_process_cpu_seconds": elapsed_cpu,
         "peak_observed_rss_bytes": peak_rss,
+        "peak_rss_sampling_interval_seconds": 0.05,
         "rss_target_bytes": MAX_RSS_BYTES,
         "rss_target_exceeded": peak_rss > MAX_RSS_BYTES,
         "artifact_bytes": artifact_bytes,
@@ -971,6 +1187,11 @@ def build_reports_data(
         "protected_tree_fingerprints_before": protected_before,
         "protected_tree_fingerprints_after": protected_after,
         "protected_trees_unchanged": protected_before == protected_after,
+        "approved_g0_commit": APPROVED_G0_COMMIT,
+        "approved_g0_commit_is_execution_head_ancestor": is_ancestor(
+            APPROVED_G0_COMMIT,
+            subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()),
+        "e1_source_code_sha256": source_code_hashes(),
         "output_directory": str(output_path.relative_to(ROOT)).replace("\\", "/"),
     }
 
@@ -982,8 +1203,10 @@ def main() -> int:
         raise RuntimeError("Torch was imported; E1 requires CPU-only cached-feature execution")
     require(subprocess.check_output(["git", "branch", "--show-current"], cwd=ROOT, text=True).strip() ==
             "stage3-eg-famar-execution", "unexpected research branch")
-    require(subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip() ==
-            "a50459f6061a951ca8aa7d6f34bd0863b6145ebd", "starting HEAD differs from E1 authorization")
+    execution_head = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
+    require(execution_head == EXPECTED_R1_START_HEAD, "starting HEAD differs from E1-R1 authorization")
+    require(is_ancestor(APPROVED_G0_COMMIT, execution_head),
+            "approved G0 commit is not an ancestor of the execution HEAD")
     if RUN_DIR.exists():
         require(not any(RUN_DIR.iterdir()), f"refusing to overwrite nonempty E1 output directory: {RUN_DIR}")
     else:
@@ -991,6 +1214,8 @@ def main() -> int:
     start_wall = time.perf_counter()
     cpu_start = time.process_time()
     process = psutil.Process()
+    rss_sampler = PeakRssSampler()
+    rss_sampler.start()
     peak_rss = process.memory_info().rss
     protected_before = protected_snapshot()
     original_p1b_hashes = validate_original_p1b_hashes()
@@ -1013,64 +1238,43 @@ def main() -> int:
             support[protocol] = validate_protocol_support(feedback, future, protocol)
             protocols[protocol] = feedback, future
 
-        anchor = load_registered_anchor(x_fit, y_fit)
-        initial_score_diffs = verify_registered_initial_scores(
-            features, protocols, anchor["w0"], anchor["b0"]
-        )
-        if anchor["anchor_gradient_inf"] > GRAD_INF_TOL:
+        try:
+            anchor = load_registered_anchor(x_fit, y_fit)
+        except (SolverFailure, RuntimeError, ValueError) as exc:
             post_integrity = p1b_runner.capture_preflight()
             protected_after = protected_snapshot()
             require(post_integrity["snapshot_sha256"] == integrity["snapshot_sha256"],
-                    "P1-A source/feature/manifests changed before the compatibility gate stopped")
+                    "P1-A snapshot changed while attempting the new initializer")
             require(protected_before == protected_after,
-                    "a protected P1-A/P1-B/G0 tree changed before the compatibility gate stopped")
-            require(len(validate_original_p1b_hashes()) == 15,
-                    "original P1-B run artifact verification failed at the compatibility gate")
+                    "a protected P1-A/P1-B/G0 tree changed while attempting the new initializer")
+            validate_original_p1b_hashes()
             gate = {
-                "status": "BLOCKED_BEFORE_FITTING",
-                "reason": "HISTORICAL_SKLEARN_INITIALIZATION_EXCEEDS_REGISTERED_GRADIENT_TOLERANCE",
-                "protocol_scope": "LP-D6-P2-E1 only",
-                "execution_head": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip(),
+                "status": "BLOCKED_INITIAL_OPTIMIZATION",
+                "reason": str(exc),
+                "execution_head": execution_head,
+                "approved_g0_commit": APPROVED_G0_COMMIT,
+                "approved_g0_commit_is_ancestor": True,
                 "interpreter": sys.executable,
                 "device": "CPU only; no Torch import; no GPU use",
                 "integrity_gate": "PASS",
-                "d_fit_binary_n": int(len(y_fit)),
-                "d_fit_present_n": int(np.sum(y_fit == 1)),
-                "d_fit_absent_n": int(np.sum(y_fit == 0)),
-                "lambda": LAMBDA,
-                "gamma_anchor_check": 0.0,
-                "historical_sklearn_mapping": {"alpha": 1e-4, "n": int(len(y_fit)),
-                                                "C": float(1.0 / (1e-4 * len(y_fit)))},
-                "registered_objective_at_anchor": float(anchor["anchor_objective"]),
-                "registered_gradient_inf_at_anchor": float(anchor["anchor_gradient_inf"]),
-                "gradient_inf_tolerance": GRAD_INF_TOL,
-                "gradient_intercept_at_anchor": float(anchor["anchor_gradient_vector"][-1]),
-                "gradient_weight_inf_at_anchor": float(np.max(np.abs(anchor["anchor_gradient_vector"][:-1]))),
-                "anchor_weight_norm": float(np.linalg.norm(anchor["w0"])),
-                "anchor_intercept": float(anchor["b0"]),
-                "anchor_state_digest": anchor["initial_learner_state_sha256"],
-                "p1b_checkpoint0_max_abs_score_difference": initial_score_diffs,
-                "p1b_initial_and_final_state_digests_verified": True,
-                "original_p1b_files_hash_verified": 15,
-                "p1a_snapshot_sha256_before_and_after": integrity["snapshot_sha256"],
-                "p1b_original_artifacts_and_g0_trees_unchanged": True,
-                "proximal_fits_run": 0,
-                "gamma_zero_refits_run": 0,
-                "newton_cg_verification_runs": 0,
-                "newton_cg_not_started_due_to_initialization_gate": True,
-                "future_labels_used_for_fit_or_gate": False,
-                "note": "The saved P1-B initialization and B0 arrays were reused unchanged. No alternative initializer, optimizer setting, or scientific model fit was attempted.",
+                "new_initializer_solver": "SciPy L-BFGS-B with frozen options",
+                "real_feedback_fits_run": 0,
+                "newton_cg_checks_run": 0,
+                "p1a_snapshot_sha256": integrity["snapshot_sha256"],
+                "original_p1b_file_hashes_verified": 15,
+                "protected_trees_unchanged": True,
+                "e1_source_code_sha256": source_code_hashes(),
             }
-            (RUN_DIR / "anchor_compatibility_gate.json").write_text(
+            (RUN_DIR / "initialization_gate.json").write_text(
                 json.dumps(gate, indent=2, ensure_ascii=False), encoding="utf-8"
             )
-            print("D6_P2_E1_STATUS=BLOCKED_BEFORE_FITTING")
-            print("reason=HISTORICAL_SKLEARN_INITIALIZATION_EXCEEDS_REGISTERED_GRADIENT_TOLERANCE")
-            print("gradient_inf_norm=" + f"{anchor['anchor_gradient_inf']:.12g}")
-            print("gradient_tolerance=" + f"{GRAD_INF_TOL:.12g}")
-            print("proximal_fits=0")
-            print("newton_cg_checks=0")
+            print("D6_P2_E1_R1_STATUS=BLOCKED_INITIAL_OPTIMIZATION")
+            print("reason=" + str(exc))
+            print("real_feedback_fits=0")
             return 2
+        initial_score_diffs = compare_historical_initial_scores(
+            features, protocols, anchor["w0"], anchor["b0"]
+        )
         all_metric_rows: list[dict[str, Any]] = []
         all_product_rows: list[dict[str, Any]] = []
         all_event_rows: list[dict[str, Any]] = []
@@ -1080,23 +1284,12 @@ def main() -> int:
         state_store: dict[str, np.ndarray] = {
             "registered_anchor_w0": anchor["w0"].astype(np.float64),
             "registered_anchor_b0": np.asarray([anchor["b0"]], dtype=np.float64),
+            "historical_anchor_w0": anchor["old_w0"].astype(np.float64),
+            "historical_anchor_b0": np.asarray([anchor["old_b0"]], dtype=np.float64),
         }
         for protocol in ("X", "W"):
             feedback, future = protocols[protocol]
-            baseline = _baseline_replay(
-                protocol=protocol,
-                feedback=feedback,
-                future=future,
-                features=features,
-                w0=anchor["w0"],
-                b0=anchor["b0"],
-                final_state=anchor["final_states"][protocol],
-            )
-            all_metric_rows.extend(baseline["metrics"])
-            all_product_rows.extend(baseline["products"])
-            all_prediction_rows.extend(baseline["predictions"])
-            all_event_rows.extend(baseline["events"])
-            for gamma in GAMMAS:
+            for gamma in ALL_GAMMAS:
                 trajectory = replay_proximal(
                     protocol=protocol,
                     gamma=gamma,
@@ -1116,15 +1309,18 @@ def main() -> int:
                 all_fit_rows.append({
                     "protocol": protocol,
                     "gamma": gamma,
-                    "status": "PASS",
+                    "status": trajectory["status"],
                     "valid_binary_update_count": trajectory["fit_count"],
+                    "expected_binary_update_count": trajectory["expected_fit_count"],
                     "event_cost_units": 12,
                     "solver": "L-BFGS-B",
                     "max_iterations": max(int(r["fit_iterations"] or 0) for r in trajectory["rows"]["metrics"]),
                     "max_gradient_inf_norm": max(float(r["gradient_inf_norm"]) for r in trajectory["rows"]["metrics"]),
+                    "failure": trajectory["failure"],
                 })
-                require(trajectory["fit_count"] == (12 if protocol == "X" else 11),
-                        f"{protocol} proximal update count differs from the registered tape")
+                if trajectory["status"] == "PASS":
+                    require(trajectory["fit_count"] == (12 if protocol == "X" else 11),
+                            f"{protocol} full-history update count differs from the registered tape")
                 for checkpoint_id, arrays in trajectory["states"].items():
                     prefix = f"{protocol}__gamma_{gamma:.0e}__checkpoint_{checkpoint_id:02d}__"
                     for name, value in arrays.items():
@@ -1132,6 +1328,15 @@ def main() -> int:
                 peak_rss = max(peak_rss, process.memory_info().rss)
                 if time.process_time() - cpu_start > MAX_CPU_SECONDS:
                     raise TimeoutError("30-minute cumulative CPU experiment ceiling reached")
+
+        # All six trajectories must start from an exactly shared checkpoint-0.
+        for protocol in ("X", "W"):
+            gamma_zero = trajectories[(protocol, 0.0)]["states"][0]
+            for gamma in GAMMAS:
+                other = trajectories[(protocol, gamma)]["states"][0]
+                require(np.array_equal(gamma_zero["coef"], other["coef"]) and
+                        np.array_equal(gamma_zero["intercept"], other["intercept"]),
+                        f"{protocol} gamma tracks do not share an identical checkpoint-0 state")
 
         checks = numerical_cross_checks(
             x_fit=x_fit,
@@ -1141,21 +1346,29 @@ def main() -> int:
             w0=anchor["w0"],
             cpu_start=cpu_start,
         )
+        completed_online_fits = sum(int(r["valid_binary_update_count"]) for r in all_fit_rows)
+        expected_online_fits = sum(int(r["expected_binary_update_count"]) for r in all_fit_rows)
+        require(expected_online_fits == 69,
+                "registered W/X feedback tapes no longer imply 69 maximum online fits")
         write_csv(RUN_DIR / "checkpoint_metrics.csv", all_metric_rows)
         write_csv(RUN_DIR / "product_metrics.csv", all_product_rows)
         write_csv(RUN_DIR / "feedback_event_log.csv", all_event_rows)
         write_csv(RUN_DIR / "future_predictions.csv", all_prediction_rows)
         write_csv(RUN_DIR / "proximal_fit_summary.csv", all_fit_rows)
         write_csv(RUN_DIR / "newton_cg_verification.csv", checks)
+        write_csv(RUN_DIR / "historical_gamma0_reference.csv",
+                  historical_gamma0_comparison(all_metric_rows, all_prediction_rows))
         np.savez_compressed(RUN_DIR / "model_states.npz", **state_store)
 
         # Numerical objective/gradient checks at every registered selected checkpoint.
         objective_checks = []
         for protocol in ("X", "W"):
             feedback, _future = protocols[protocol]
-            for gamma in GAMMAS:
+            for gamma in ALL_GAMMAS:
                 trajectory = trajectories[(protocol, gamma)]
                 for cp in VERIFY_CHECKPOINTS:
+                    if cp not in trajectory["states"]:
+                        continue
                     params = trajectory["states"][cp]
                     events = [e for e in feedback if e.stream_order <= cp and
                               p1b_core.binary_target(e.state) is not None]
@@ -1177,12 +1390,8 @@ def main() -> int:
                         "finite": bool(np.isfinite(value) and np.isfinite(gradient).all()),
                     })
         write_csv(RUN_DIR / "objective_gradient_checks.csv", objective_checks)
-        require(all(row["finite"] and row["gradient_inf_norm"] <= GRAD_INF_TOL for row in objective_checks),
-                "selected objective/gradient checkpoint verification failed")
-        require(len(checks) == 16 and all(row["passed"] for row in checks),
-                "independent Newton-CG verification did not pass all 16 registered checks")
-        require(sum(int(r["valid_binary_update_count"]) for r in all_fit_rows) == 46,
-                "new proximal optimization count differs from the registered maximum 46")
+        objective_checks_pass = all(row["finite"] and row["gradient_inf_norm"] <= GRAD_INF_TOL
+                                    for row in objective_checks)
 
         artifact_bytes = sum(p.stat().st_size for p in RUN_DIR.rglob("*") if p.is_file())
         require(artifact_bytes <= MAX_OUTPUT_BYTES, "E1 artifacts exceed the 100 MiB limit")
@@ -1195,7 +1404,7 @@ def main() -> int:
 
     elapsed_wall = time.perf_counter() - start_wall
     elapsed_cpu = time.process_time() - cpu_start
-    peak_rss = max(peak_rss, process.memory_info().rss)
+    peak_rss = max(peak_rss, rss_sampler.stop(), process.memory_info().rss)
     if elapsed_cpu > MAX_CPU_SECONDS:
         raise TimeoutError("30-minute cumulative CPU experiment ceiling exceeded")
     provenance = build_reports_data(
@@ -1218,11 +1427,27 @@ def main() -> int:
     )
     provenance["original_p1b_files_hash_verified"] = len(original_p1b_hashes)
     provenance["p1b_input_snapshot_sha256_after"] = post_integrity["snapshot_sha256"]
+    provenance["fit_summary"].update({
+        "expected_online_optimization_count": expected_online_fits,
+        "completed_online_optimization_count": completed_online_fits,
+        "all_registered_updates_completed": completed_online_fits == expected_online_fits,
+    })
+    provenance["optimizer"].update({
+        "expected_newton_cg_verification_runs": NEWTON_MAX_RUNS,
+        "objective_gradient_checkpoint_checks_pass": objective_checks_pass,
+    })
+    provenance["status"] = (
+        "PASS" if completed_online_fits == expected_online_fits and
+        len(checks) == NEWTON_MAX_RUNS and all(c["passed"] for c in checks) and
+        objective_checks_pass and all(row["status"] == "PASS" for row in all_fit_rows)
+        else "PARTIAL"
+    )
     (RUN_DIR / "run_provenance.json").write_text(
         json.dumps(provenance, indent=2, ensure_ascii=False), encoding="utf-8"
     )
     print("D6_P2_E1_STATUS=" + provenance["status"])
-    print("proximal_fits=" + str(provenance["fit_summary"]["proximal_optimization_count"]))
+    print("online_fits=" + str(provenance["fit_summary"]["online_optimization_count"]))
+    print("total_lbfgsb_optimizations=" + str(provenance["fit_summary"]["total_l_bfgs_b_optimizations"]))
     print("newton_cg_checks=" + str(len(checks)))
     print("cpu_seconds=" + f"{elapsed_cpu:.3f}")
     print("peak_rss_bytes=" + str(peak_rss))
